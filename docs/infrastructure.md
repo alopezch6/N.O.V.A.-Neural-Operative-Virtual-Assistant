@@ -14,18 +14,18 @@
 Both nodes are connected via Tailscale mesh VPN. All inter-node traffic flows through the private network:
 
 ```
-PC  100.68.163.22  ←── Tailscale mesh ───→  Oracle  100.111.223.84
+PC  <PC_TAILSCALE_IP>  ←── Tailscale mesh ───→  Oracle  <ORACLE_TAILSCALE_IP>
 ```
 
 Services exposed only on the Tailscale interface (never public internet):
 
 | Service | Node | Port |
 |---|---|---|
-| Ollama (DeepSeek-R1, Hermes3) | Oracle | 11434 |
-| Almacén REST | Oracle | 9101 |
-| Local health endpoint | PC | 5000 |
+| Ollama (DeepSeek-R1, Hermes3) | Oracle | `<OLLAMA_PORT>` |
+| REST Store | Oracle | `<ALMACEN_PORT>` |
+| Local health endpoint | PC | `<PC_HEALTH_PORT>` |
 
-The watchdog on Oracle (`watchdog_oracle.py`) probes `http://100.68.163.22:5000/health` to detect if the PC is online. The local watchdog (`watchdog.py`) does the reverse for Oracle services.
+The watchdog on Oracle (`watchdog_oracle.py`) probes `http://<PC_TAILSCALE_IP>:<PC_HEALTH_PORT>/health` to detect if the PC is online. The local watchdog (`watchdog.py`) does the reverse for Oracle services.
 
 ---
 
@@ -108,10 +108,10 @@ All secrets and node addresses are managed via `.env`. See `.env.example` for a 
 Key variables for infrastructure:
 
 ```env
-OLLAMA_HOST_ORACLE=http://100.111.223.84:11434
-ALMACEN_URL=http://100.111.223.84:9101
+OLLAMA_HOST_ORACLE=http://<ORACLE_TAILSCALE_IP>:<OLLAMA_PORT>
+ALMACEN_URL=http://<ORACLE_TAILSCALE_IP>:<ALMACEN_PORT>
 ALMACEN_TOKEN=your_sync_token
-PC_TAILSCALE_IP=100.68.163.22
+PC_TAILSCALE_IP=<PC_TAILSCALE_IP>
 TELEGRAM_BOT_TOKEN=your_bot_token
 TELEGRAM_ALLOWED_ID=your_telegram_id
 ```
