@@ -2,7 +2,7 @@
 
 A distributed personal AI assistant running across two nodes (local PC + Oracle Cloud), with adaptive LLM routing, persistent semantic memory, voice interface, and a self-extending agent system.
 
-![NOVA Orb Widget](assets/orb.png) ![NOVA HUD](assets/hud.png) ![Architecture](assets/architecture.png)
+![NOVA Orb Widget](assets/orb.png) ![NOVA HUD](assets/hud.png)
 
 ---
 
