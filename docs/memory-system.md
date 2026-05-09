@@ -1,93 +1,93 @@
-# Memory System
+# Sistema de Memoria
 
-NOVA uses a four-layer memory architecture. Each layer serves a different latency and scope requirement.
-
----
-
-## Layer 1 — Compressed JSON Historial
-
-**File:** `historial.json`  
-**Module:** `memory/memoria.py`  
-**Latency:** microseconds
-
-Rolling window of the last 40 turns, stored as compressed JSON. Injected directly into the LLM context on every request. This is the working memory — what the model can "see" in the current conversation.
-
-Synced bidirectionally with the Oracle almacén at session start and end. If the local file is stale or absent, it pulls from Oracle.
+NOVA utiliza una arquitectura de memoria de cuatro capas. Cada capa sirve un requisito diferente de latencia y alcance.
 
 ---
 
-## Layer 2 — Semantic Vector Memory
+## Capa 1 — Historial JSON Comprimido
 
-**Engine:** ChromaDB + `paraphrase-multilingual-MiniLM-L12-v2`  
-**Module:** `memory/memoria_profunda.py`  
-**Latency:** milliseconds
+**Archivo:** `historial.json`  
+**Módulo:** `memory/memoria.py`  
+**Latencia:** microsegundos
 
-Stores conversation turns and autonomous learning entries as embeddings. Used for:
-- Retrieving semantically relevant past conversations before responding
-- Cross-session context injection ("you mentioned this last week")
-- Storing findings from idle-time autonomous research
+Ventana deslizante de los últimos 40 turnos, almacenada como JSON comprimido. Se inyecta directamente en el contexto del LLM en cada petición. Es la memoria de trabajo — lo que el modelo puede "ver" en la conversación actual.
 
-The embedding model runs locally, offline, without API calls.
+Se sincroniza bidireccionalmente con el almacén Oracle al inicio y fin de cada sesión. Si el archivo local está obsoleto o ausente, se descarga desde Oracle.
 
 ---
 
-## Layer 3 — SQLite Full History
+## Capa 2 — Memoria Vectorial Semántica
 
-**Module:** `memory/memoria_profunda.py`  
-**Latency:** milliseconds
+**Motor:** ChromaDB + `paraphrase-multilingual-MiniLM-L12-v2`  
+**Módulo:** `memory/memoria_profunda.py`  
+**Latencia:** milisegundos
 
-Complete, uncompressed conversation history. Never truncated. Used for:
-- Full-text search across all sessions
-- Audit trail
-- Nightly consolidation and pattern analysis (`consolidacion_nocturna.py`)
-- Usage statistics (`patrones_uso.py`)
+Almacena turnos de conversación y entradas de aprendizaje autónomo como embeddings. Se usa para:
+- Recuperar conversaciones pasadas semánticamente relevantes antes de responder
+- Inyección de contexto entre sesiones ("mencionaste esto la semana pasada")
+- Almacenar hallazgos de la investigación autónoma en tiempo de inactividad
+
+El modelo de embeddings se ejecuta localmente, sin conexión, sin llamadas a API.
 
 ---
 
-## Layer 4 — Oracle Almacén (Source of Truth)
+## Capa 3 — Historial Completo SQLite
+
+**Módulo:** `memory/memoria_profunda.py`  
+**Latencia:** milisegundos
+
+Historial completo y sin comprimir de todas las conversaciones. Nunca se trunca. Se usa para:
+- Búsqueda de texto completo en todas las sesiones
+- Registro de auditoría
+- Consolidación nocturna y análisis de patrones (`consolidacion_nocturna.py`)
+- Estadísticas de uso (`patrones_uso.py`)
+
+---
+
+## Capa 4 — Almacén Oracle (Fuente de Verdad)
 
 **Endpoint:** `http://<oracle-ip>:9101`  
-**Module:** `infrastructure/almacen.py`  
-**Auth:** Bearer token via `ALMACEN_TOKEN`
+**Módulo:** `infrastructure/almacen.py`  
+**Autenticación:** Bearer token vía `ALMACEN_TOKEN`
 
-REST API running on the Oracle node. Acts as the distributed source of truth for the JSON historial. Both nodes (PC and Oracle) sync to and from this endpoint.
+API REST que corre en el nodo Oracle. Actúa como fuente de verdad distribuida para el historial JSON. Ambos nodos (PC y Oracle) sincronizan hacia y desde este endpoint.
 
-This ensures that a session started via voice on the PC and continued via Telegram has the same memory state.
+Esto garantiza que una sesión iniciada por voz en el PC y continuada por Telegram tenga el mismo estado de memoria.
 
 **Endpoints:**
-- `GET /historial` — fetch current historial
-- `POST /historial` — push updated historial
-- `GET /health` — liveness check (used by both watchdogs)
+- `GET /historial` — obtener historial actual
+- `POST /historial` — subir historial actualizado
+- `GET /health` — comprobación de disponibilidad (usada por ambos watchdogs)
 
 ---
 
-## Autonomous Research (Idle-time Learning)
+## Investigación Autónoma (Aprendizaje en Inactividad)
 
-`orchestration/daemon_inactividad.py` monitors activity. After 30 minutes of silence:
+`orchestration/daemon_inactividad.py` monitoriza la actividad. Tras 30 minutos de silencio:
 
-1. Derives research topics from recent conversation turns
-2. Falls back to baseline topics (AI news, game updates)
-3. Searches via DuckDuckGo (`ddgs`)
-4. Stores findings as `tipo=aprendizaje` turns in ChromaDB
+1. Deriva temas de investigación de los turnos de conversación recientes
+2. Recurre a temas base (noticias de IA, actualizaciones de juegos)
+3. Busca vía DuckDuckGo (`ddgs`)
+4. Almacena los hallazgos como turnos de tipo `aprendizaje` en ChromaDB
 
-A nightly report summarizes what was learned and sends it via Telegram at 00:00.
+Un informe nocturno resume lo aprendido y lo envía por Telegram a las 00:00.
 
 ---
 
-## Memory Flow
+## Flujo de Memoria
 
 ```
-New conversation turn
+Nuevo turno de conversación
         │
         ▼
-  Inject context (Layer 1 — JSON historial, Layer 2 — semantic search)
+  Inyectar contexto (Capa 1 — historial JSON, Capa 2 — búsqueda semántica)
         │
         ▼
-  Generate response
+  Generar respuesta
         │
         ▼
-  Save turn → Layer 1 (JSON) + Layer 2 (ChromaDB) + Layer 3 (SQLite)
+  Guardar turno → Capa 1 (JSON) + Capa 2 (ChromaDB) + Capa 3 (SQLite)
         │
         ▼
-  Sync Layer 1 → Layer 4 (Oracle almacén)
+  Sincronizar Capa 1 → Capa 4 (almacén Oracle)
 ```

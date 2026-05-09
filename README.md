@@ -1,113 +1,113 @@
-# NOVA — Neural Operative Virtual Assistant
+# N.O.V.A. — Asistente Virtual Operativo Neural
 
-A distributed personal AI assistant running across two nodes (local PC + Oracle Cloud), with adaptive LLM routing, persistent semantic memory, voice interface, and a self-extending agent system.
+Asistente de IA personal distribuido en dos nodos (PC local + Oracle Cloud), con enrutamiento adaptativo de LLMs, memoria semántica persistente, interfaz de voz y un sistema de agentes autoextensible.
 
-![NOVA Orb Widget](assets/orb.png) ![NOVA HUD](assets/hud.png) ![Architecture](assets/architecture.png)
-
----
-
-## What makes NOVA different?
-
-**It runs on zero-cost infrastructure.** Heavy models (DeepSeek-R1:14b, Hermes3:8b) run on Oracle Cloud Always Free. The local node handles voice and UI. No ongoing API bills for inference.
-
-**Memory that actually persists.** Four-layer memory architecture: compressed JSON for fast context injection, ChromaDB for semantic search, SQLite for full history, and an Oracle REST almacén as the distributed source of truth — synced across nodes, sessions, and interfaces (voice, Telegram, widget).
-
-**It extends itself at runtime.** When a request falls outside known capabilities, NOVA generates a Python snippet via LLM, asks for confirmation, executes it in a sandboxed subprocess, and caches it permanently. The next time the same capability is needed, no generation step occurs.
-
-**Two nodes, private network, no public endpoints.** Local PC and Oracle Cloud communicate exclusively over Tailscale mesh VPN. The LLM API and memory sync never touch the public internet.
+![NOVA Orb Widget](assets/orb.png) ![NOVA HUD](assets/hud.png) ![Arquitectura](assets/architecture.png)
 
 ---
 
-## Architecture
+## ¿Qué hace a NOVA diferente?
+
+**Funciona sobre infraestructura de coste cero.** Los modelos pesados (DeepSeek-R1:14b, Hermes3:8b) corren en Oracle Cloud Always Free. El nodo local gestiona voz e interfaz gráfica. Sin facturas de API para inferencia.
+
+**Memoria que realmente persiste.** Arquitectura de cuatro capas: JSON comprimido para inyección de contexto rápida, ChromaDB para búsqueda semántica, SQLite como historial completo, y un almacén REST en Oracle como fuente de verdad distribuida — sincronizado entre nodos, sesiones e interfaces (voz, Telegram, widget).
+
+**Se extiende sola en tiempo de ejecución.** Cuando una petición cae fuera de las capacidades conocidas, NOVA genera un snippet Python vía LLM, pide confirmación, lo ejecuta en un subproceso controlado y lo cachea permanentemente. La siguiente vez que se necesite esa capacidad, no hay paso de generación.
+
+**Dos nodos, red privada, sin endpoints públicos.** El PC local y Oracle Cloud se comunican exclusivamente a través de la VPN mesh de Tailscale. La API de LLM y la sincronización de memoria nunca pasan por internet público.
+
+---
+
+## Arquitectura
 
 ```mermaid
 graph TB
-    subgraph LOCAL ["🖥️ Local Node — Windows PC"]
-        NOVA[nova.py — Main Loop]
-        VOZ[Voice Pipeline\nVosk · Whisper · Kokoro]
-        TG[Telegram Bot]
-        WGT[PySide6 Orb Widget]
-        MEM[Memory\nChromaDB · SQLite · JSON]
-        AGT[Agent System\nReAct · Hot-reload Plugins]
-        QWEN[Qwen2.5:3b\nOffline Fallback]
+    subgraph LOCAL ["🖥️ Nodo Local — Windows PC"]
+        NOVA[nova.py — Bucle Principal]
+        VOZ[Pipeline de Voz\nVosk · Whisper · Kokoro]
+        TG[Bot de Telegram]
+        WGT[Widget PySide6]
+        MEM[Memoria\nChromaDB · SQLite · JSON]
+        AGT[Sistema de Agentes\nReAct · Plugins Hot-reload]
+        QWEN[Qwen2.5:3b\nFallback Offline]
     end
 
     subgraph ORACLE ["☁️ Oracle Cloud — Ubuntu"]
-        DEEPSEEK[DeepSeek-R1:14b\nReasoning Engine]
-        HERMES[Hermes3:8b\nTool-calling Agent]
-        ALMACEN[Almacén REST :9101\nSource of Truth]
+        DEEPSEEK[DeepSeek-R1:14b\nMotor de Razonamiento]
+        HERMES[Hermes3:8b\nAgente con Herramientas]
+        ALMACEN[Almacén REST :9101\nFuente de Verdad]
         WD[Watchdog Oracle\nCron · Auto-restart]
     end
 
-    subgraph CLOUD ["🌐 External APIs"]
+    subgraph CLOUD ["🌐 APIs Externas"]
         GROQ[Groq API\ngpt-oss-120b · llama-3.3-70b]
-        ALEXA[Amazon Echo Dot\nRemote TTS]
+        ALEXA[Amazon Echo Dot\nTTS Remoto]
         TAVILY[Tavily Search]
     end
 
     NOVA --> VOZ & TG & AGT & MEM & QWEN
-    WGT -->|state endpoint| NOVA
-    NOVA <-->|Tailscale VPN| DEEPSEEK & ALMACEN
+    WGT -->|endpoint de estado| NOVA
+    NOVA <-->|VPN Tailscale| DEEPSEEK & ALMACEN
     NOVA --> GROQ & TAVILY
     VOZ --> ALEXA
     AGT --> HERMES
-    WD -->|monitors + auto-restart| ALMACEN & DEEPSEEK
+    WD -->|monitoriza + reinicio automático| ALMACEN & DEEPSEEK
 ```
 
-**Routing:** keyword classification at runtime → DeepSeek-R1 for reasoning/code, Groq for fast conversational responses, Qwen2.5 as offline fallback. Automatic, latency-aware, no manual switching.
+**Enrutamiento:** clasificación por palabras clave en tiempo de ejecución → DeepSeek-R1 para razonamiento y código, Groq para respuestas conversacionales rápidas, Qwen2.5 como fallback offline. Automático y consciente de la latencia.
 
 ---
 
-## Tech Stack
+## Stack tecnológico
 
-| Technology | Role |
+| Tecnología | Rol |
 |---|---|
-| Python 3.11 | Core runtime |
-| Ollama | LLM serving (local + Oracle) |
-| DeepSeek-R1:14b | Chain-of-thought reasoning (Oracle) |
-| Hermes3:8b | ReAct tool-calling agent (Oracle) |
-| Qwen2.5:3b | Fast offline fallback (local) |
-| Groq API | Cloud inference (gpt-oss-120b / llama-3.3-70b) |
-| ChromaDB | Semantic vector memory |
-| SQLite | Full conversation history |
-| PySide6 + QWebEngineView | Frameless desktop widget (WebGL orb) |
-| Vosk | Offline Spanish wake-word detection |
-| faster-Whisper large-v3-turbo | CUDA speech recognition |
-| Kokoro / Edge TTS / Alexa Remote | TTS pipeline with layered fallback |
-| Tailscale | Mesh VPN between nodes |
-| python-telegram-bot | Telegram interface |
-| Tavily | Real-time web search |
+| Python 3.11 | Runtime principal |
+| Ollama | Servicio de LLMs (local + Oracle) |
+| DeepSeek-R1:14b | Razonamiento en cadena (Oracle) |
+| Hermes3:8b | Agente ReAct con herramientas (Oracle) |
+| Qwen2.5:3b | Fallback offline rápido (local) |
+| Groq API | Inferencia en la nube (gpt-oss-120b / llama-3.3-70b) |
+| ChromaDB | Memoria vectorial semántica |
+| SQLite | Historial completo de conversaciones |
+| PySide6 + QWebEngineView | Widget de escritorio sin marco (orbe WebGL) |
+| Vosk | Detección de palabra de activación offline en español |
+| faster-Whisper large-v3-turbo | Reconocimiento de voz con CUDA |
+| Kokoro / Edge TTS / Alexa Remote | Pipeline TTS con fallback por capas |
+| Tailscale | VPN mesh entre nodos |
+| python-telegram-bot | Interfaz de Telegram |
+| Tavily | Búsqueda web en tiempo real |
 
 ---
 
-## Quick Start
+## Inicio rápido
 
 ```bash
-git clone https://github.com/your-username/nova.git
-cd nova
+git clone https://github.com/alopezch6/N.O.V.A.-Neural-Operative-Virtual-Assistant.git
+cd N.O.V.A.-Neural-Operative-Virtual-Assistant
 pip install -r requirements.txt
 cp .env.example .env
-# Fill in your keys — see .env.example for reference
+# Rellena tus claves — ver .env.example como referencia
 python nova.py
 ```
 
-> Voice pipeline requires a CUDA-capable GPU and a working microphone.
-> Oracle node requires Ollama with `deepseek-r1:14b` and `hermes3:8b` pulled.
-> Both nodes must be on the same Tailscale network.
+> El pipeline de voz requiere una GPU con CUDA y micrófono.
+> El nodo Oracle requiere Ollama con `deepseek-r1:14b` y `hermes3:8b` descargados.
+> Ambos nodos deben estar en la misma red Tailscale.
 
 ---
 
-## Documentation
+## Documentación
 
-| Doc | Contents |
+| Doc | Contenido |
 |---|---|
-| [Architecture](docs/architecture.md) | Module breakdown, design decisions, project structure |
-| [Memory System](docs/memory-system.md) | Four-layer memory architecture explained |
-| [Voice Pipeline](docs/voice-pipeline.md) | Wake word → STT → TTS chain |
-| [Infrastructure](docs/infrastructure.md) | Oracle node, Tailscale, watchdogs, systemd setup |
+| [Arquitectura](docs/architecture.md) | Desglose de módulos, decisiones de diseño, estructura del proyecto |
+| [Sistema de Memoria](docs/memory-system.md) | Arquitectura de cuatro capas explicada |
+| [Pipeline de Voz](docs/voice-pipeline.md) | Palabra de activación → STT → TTS |
+| [Infraestructura](docs/infrastructure.md) | Nodo Oracle, Tailscale, watchdogs, configuración systemd |
 
 ---
 
-## License
+## Licencia
 
 MIT

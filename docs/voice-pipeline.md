@@ -1,86 +1,86 @@
-# Voice Pipeline
+# Pipeline de Voz
 
-NOVA's voice pipeline is designed to feel like a native voice assistant — sub-second wake-word detection, accurate Spanish transcription, and a layered TTS chain with automatic fallback.
+El pipeline de voz de NOVA está diseñado para sentirse como un asistente de voz nativo — detección de palabra de activación en menos de un segundo, transcripción precisa en español y una cadena TTS con fallback automático.
 
 ---
 
-## Pipeline Overview
+## Resumen del Pipeline
 
 ```
-Microphone input (continuous)
+Entrada de micrófono (continua)
         │
         ▼
-  Vosk — offline wake-word detection
-  Triggers on: "nova", "hey nova", "oye nova" (+ phonetic variants)
+  Vosk — detección de palabra de activación offline
+  Se activa con: "nova", "hey nova", "oye nova" (+ variantes fonéticas)
         │
         ▼
   faster-Whisper large-v3-turbo (CUDA float16)
-  Spanish transcription — silence-gated
+  Transcripción en español — con control de silencio
         │
         ▼
-  nova.py — routing + response generation
+  nova.py — enrutamiento + generación de respuesta
         │
         ▼
-  TTS chain (priority order):
-    1. Kokoro TTS (local neural voice)
-    2. Edge TTS — es-ES-AlvaroNeural (cloud, free)
-    3. Amazon Alexa Remote Control (Echo Dot)
+  Cadena TTS (por orden de prioridad):
+    1. Kokoro TTS (voz neuronal local)
+    2. Edge TTS — es-ES-AlvaroNeural (nube, gratuito)
+    3. Alexa Remote Control (Amazon Echo Dot)
 ```
 
 ---
 
-## Wake Word Detection (Vosk)
+## Detección de Palabra de Activación (Vosk)
 
-**Module:** `interfaces/voz.py` → `esperar_activacion()`  
-**Model:** `vosk-model-small-es-0.42` (offline, ~40MB)
+**Módulo:** `interfaces/voz.py` → `esperar_activacion()`  
+**Modelo:** `vosk-model-small-es-0.42` (offline, ~40MB)
 
-Runs continuously in a background thread. Listens for activation words defined in `config.py`:
+Corre continuamente en un hilo de fondo. Escucha las palabras de activación definidas en `config.py`:
 
 ```python
 ACTIVACIONES = ["nova", "no va", "novo", "noba", "oye nova", "hey nova", "oye no va"]
 ```
 
-Phonetic variants cover common Spanish misrecognitions of "nova". Detection happens entirely offline — no API call, no latency.
+Las variantes fonéticas cubren confusiones comunes del español al reconocer "nova". La detección ocurre completamente offline — sin llamada a API, sin latencia.
 
-On trigger, NOVA responds with a short activation phrase ("Dime.", "Te escucho.", etc.) and opens the listening window.
+Al activarse, NOVA responde con una frase corta de confirmación ("Dime.", "Te escucho.", etc.) y abre la ventana de escucha.
 
 ---
 
-## Speech Recognition (faster-Whisper)
+## Reconocimiento de Voz (faster-Whisper)
 
-**Model:** `large-v3-turbo`  
+**Modelo:** `large-v3-turbo`  
 **Runtime:** CUDA float16  
-**Module:** `interfaces/voz.py` → `nova_escucha()`
+**Módulo:** `interfaces/voz.py` → `nova_escucha()`
 
-Silence-gated recording with Alexa-style timing (configurable in `config.py`):
+Grabación con control de silencio al estilo Alexa (configurable en `config.py`):
 
-| Parameter | Value | Description |
+| Parámetro | Valor | Descripción |
 |---|---|---|
-| `ESCUCHA_TIMEOUT_INICIO` | 8.0s | Silence before speech → session timeout |
-| `ESCUCHA_SILENCIO_FIN` | 1.5s | Silence after speech → end of command |
-| `ESCUCHA_MAX_DURACION` | 10.0s | Maximum active speech duration |
-| `ESCUCHA_UMBRAL_VOZ` | 300 | Minimum amplitude to count as speech |
+| `ESCUCHA_TIMEOUT_INICIO` | 8,0s | Silencio antes del habla → tiempo de espera de sesión |
+| `ESCUCHA_SILENCIO_FIN` | 1,5s | Silencio después del habla → fin del comando |
+| `ESCUCHA_MAX_DURACION` | 10,0s | Duración máxima del habla activa |
+| `ESCUCHA_UMBRAL_VOZ` | 300 | Amplitud mínima para contar como voz |
 
-The audio block size is fixed at 8000 samples @ 16kHz (0.5s/block) — matched to Vosk's expected input format.
+El tamaño de bloque de audio es fijo: 8000 muestras a 16kHz (0,5s/bloque) — adaptado al formato de entrada esperado por Vosk.
 
 ---
 
-## TTS Chain
+## Cadena TTS
 
-**Module:** `interfaces/voz.py` → `nova_habla()`
+**Módulo:** `interfaces/voz.py` → `nova_habla()`
 
-Three TTS backends in priority order:
+Tres backends TTS por orden de prioridad:
 
 ### 1. Kokoro TTS (local)
-Neural TTS running locally. No API call, no latency from network. Used when available.
+TTS neuronal que corre localmente. Sin llamada a API, sin latencia de red. Se usa cuando está disponible.
 
-### 2. Edge TTS (cloud fallback)
-Microsoft Edge TTS, Spanish voice `es-ES-AlvaroNeural`, rate `+15%`. Free, no key required. Fallback when Kokoro is unavailable.
+### 2. Edge TTS (fallback en la nube)
+Microsoft Edge TTS, voz en español `es-ES-AlvaroNeural`, velocidad `+15%`. Gratuito, sin clave requerida. Fallback cuando Kokoro no está disponible.
 
-### 3. Alexa Remote Control (primary, configurable)
-Sends text to an Amazon Echo Dot via `alexa_voz.py`. The Echo Dot speaks the response through its speaker. Enabled by default (`USE_ALEXA_TTS = True` in `config.py`). Useful when the PC speakers are not the preferred audio output.
+### 3. Alexa Remote Control (configurable como principal)
+Envía el texto a un Amazon Echo Dot vía `alexa_voz.py`. El Echo Dot pronuncia la respuesta por su altavoz. Habilitado por defecto (`USE_ALEXA_TTS = True` en `config.py`). Útil cuando los altavoces del PC no son la salida de audio preferida.
 
-To switch back to local TTS:
+Para volver al TTS local:
 ```python
 # config.py
 USE_ALEXA_TTS = False
@@ -88,6 +88,6 @@ USE_ALEXA_TTS = False
 
 ---
 
-## Audio Reactive Widget
+## Widget Reactivo al Audio
 
-The PySide6 orb widget (`interfaces/nova_widget_qt.py`) captures system audio via PyAudio loopback (Stereo Mix / Mezcla Estéreo) and computes 64 frequency bands using FFT. The bands are pushed to the WebGL renderer via JavaScript every 50ms, making the orb react to any system audio in real time.
+El widget PySide6 (`interfaces/nova_widget_qt.py`) captura el audio del sistema vía loopback PyAudio (Stereo Mix / Mezcla Estéreo) y calcula 64 bandas de frecuencia mediante FFT. Las bandas se envían al renderizador WebGL vía JavaScript cada 50ms, haciendo que el orbe reaccione al audio del sistema en tiempo real.

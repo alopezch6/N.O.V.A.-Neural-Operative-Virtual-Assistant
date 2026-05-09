@@ -1,78 +1,78 @@
-# Architecture
+# Arquitectura
 
-## Project Structure
+## Estructura del Proyecto
 
 ```
 NOVA/
-├── nova.py                  # Main loop — routing, orchestration, voice/text dispatch
-├── config.py                # Global config — all secrets via dotenv
-├── mono.py                  # Structured logger
+├── nova.py                  # Bucle principal — enrutamiento, orquestación, voz/texto
+├── config.py                # Configuración global — todos los secretos via dotenv
+├── mono.py                  # Logger estructurado
 │
 ├── agents/
-│   ├── agente.py            # Self-extending agent — generates & caches Python capabilities
-│   ├── orquestador.py       # Multi-step task orchestration
-│   ├── explorador.py        # Self-knowledge — NOVA reads its own codebase on demand
-│   ├── plugin_generator.py  # LLM-generated plugins, hot-reloaded every 30s
-│   └── herramientas.py      # ReAct tool set (read/write files, run commands, web search)
+│   ├── agente.py            # Agente autoextensible — genera y cachea capacidades Python
+│   ├── orquestador.py       # Orquestación de tareas multi-paso
+│   ├── explorador.py        # Autoconocimiento — NOVA lee su propio código bajo demanda
+│   ├── plugin_generator.py  # Plugins generados por LLM, hot-reload cada 30s
+│   └── herramientas.py      # Conjunto de herramientas ReAct (leer/escribir ficheros, ejecutar comandos, búsqueda web)
 │
 ├── interfaces/
-│   ├── voz.py               # Wake word (Vosk) → STT (Whisper large-v3-turbo) → TTS pipeline
-│   ├── telegram_bot.py      # Telegram interface — full feature parity with voice
-│   ├── servidor.py          # Local HTTP server — state endpoint for the widget
-│   ├── alexa_voz.py         # Alexa Remote Control TTS integration
-│   ├── nova_widget_qt.py    # PySide6 frameless window — WebGL orb, audio reactive
-│   └── boot_video.py        # Animated boot sequence
+│   ├── voz.py               # Palabra de activación (Vosk) → STT (Whisper large-v3-turbo) → TTS
+│   ├── telegram_bot.py      # Interfaz de Telegram — paridad completa con voz
+│   ├── servidor.py          # Servidor HTTP local — endpoint de estado para el widget
+│   ├── alexa_voz.py         # Integración TTS con Alexa Remote Control
+│   ├── nova_widget_qt.py    # Ventana sin marco PySide6 — orbe WebGL, reactivo al audio
+│   └── boot_video.py        # Secuencia de arranque animada
 │
 ├── memory/
-│   ├── memoria.py           # Primary memory — historial.json (40-turn compressed) + Oracle sync
-│   ├── memoria_profunda.py  # ChromaDB semantic search + SQLite full history
-│   ├── personas.py          # Per-user persona profiles
-│   ├── gestor_tareas.py     # Persistent task queue
-│   ├── patrones_uso.py      # Usage pattern analytics
-│   ├── recordatorios.py     # Reminder scheduler
-│   └── consolidacion_nocturna.py  # Nightly memory consolidation
+│   ├── memoria.py           # Memoria primaria — historial.json (40 turnos comprimidos) + sincronización Oracle
+│   ├── memoria_profunda.py  # Búsqueda semántica ChromaDB + historial completo SQLite
+│   ├── personas.py          # Perfiles de persona por usuario
+│   ├── gestor_tareas.py     # Cola de tareas persistente
+│   ├── patrones_uso.py      # Análisis de patrones de uso
+│   ├── recordatorios.py     # Planificador de recordatorios
+│   └── consolidacion_nocturna.py  # Consolidación nocturna de memoria
 │
 ├── orchestration/
-│   ├── daemon_proactivo.py  # Proactive suggestions based on context
-│   ├── daemon_inactividad.py # Idle-time autonomous research + nightly report
-│   ├── tareas_autonomas.py  # Background task execution
-│   └── reporte_diario.py    # Daily 06:45 system report via Telegram
+│   ├── daemon_proactivo.py  # Sugerencias proactivas basadas en contexto
+│   ├── daemon_inactividad.py # Investigación autónoma en tiempo de inactividad + informe nocturno
+│   ├── tareas_autonomas.py  # Ejecución de tareas en segundo plano
+│   └── reporte_diario.py    # Informe diario a las 06:45 vía Telegram
 │
 ├── utils/
-│   ├── acciones.py          # Action dispatcher — OS commands, apps, system control
-│   ├── internet.py          # Tavily search + connectivity probe
-│   ├── apps.py              # App launcher (normalized names → executable)
-│   ├── presencia.py         # Idle/active presence detection
-│   ├── diagnostico.py       # Self-diagnostics — import health, service status
-│   └── twitch_tracker.py    # Twitch live notifications
+│   ├── acciones.py          # Despachador de acciones — comandos del SO, apps, control del sistema
+│   ├── internet.py          # Búsqueda Tavily + sonda de conectividad
+│   ├── apps.py              # Lanzador de aplicaciones (nombres normalizados → ejecutable)
+│   ├── presencia.py         # Detección de presencia activa/inactiva
+│   ├── diagnostico.py       # Autodiagnóstico — salud de importaciones, estado de servicios
+│   └── twitch_tracker.py    # Notificaciones de stream en Twitch
 │
 ├── infrastructure/
-│   ├── almacen.py           # Oracle REST almacén — source of truth for memory sync
-│   ├── watchdog.py          # Local watchdog — monitors PC services via Tailscale
-│   ├── watchdog_oracle.py   # Oracle cron watchdog — auto-restarts systemd services
-│   ├── telemetria.py        # Metrics collector
-│   └── deploy.py            # Remote deploy helper
+│   ├── almacen.py           # Almacén REST en Oracle — fuente de verdad para sincronización de memoria
+│   ├── watchdog.py          # Watchdog local — monitoriza servicios del PC vía Tailscale
+│   ├── watchdog_oracle.py   # Watchdog cron en Oracle — reinicia servicios systemd automáticamente
+│   ├── telemetria.py        # Recolector de métricas
+│   └── deploy.py            # Ayudante de despliegue remoto
 │
-└── plugins/                 # Hot-reload directory — LLM-generated capability modules
+└── plugins/                 # Directorio hot-reload — módulos de capacidades generados por LLM
 ```
 
 ---
 
-## Adaptive LLM Routing
+## Enrutamiento Adaptativo de LLMs
 
-All requests go through a classification step before reaching any model:
+Todas las peticiones pasan por una etapa de clasificación antes de llegar a cualquier modelo:
 
 ```
-Request
+Petición
    │
-   ├── keyword match (KEYWORDS_COMPLEJO) ──→ DeepSeek-R1:14b on Oracle (reasoning, code)
+   ├── coincidencia de palabras clave (KEYWORDS_COMPLEJO) ──→ DeepSeek-R1:14b en Oracle (razonamiento, código)
    │
-   ├── internet available ──→ Groq API (gpt-oss-120b → llama-3.3-70b fallback)
+   ├── internet disponible ──→ Groq API (gpt-oss-120b → llama-3.3-70b como fallback)
    │
-   └── offline / Oracle unreachable ──→ Qwen2.5:3b local
+   └── sin internet / Oracle no accesible ──→ Qwen2.5:3b local
 ```
 
-The classification is based on a keyword list defined in `config.py`:
+La clasificación se basa en una lista de palabras clave definida en `config.py`:
 
 ```python
 KEYWORDS_COMPLEJO = [
@@ -82,21 +82,21 @@ KEYWORDS_COMPLEJO = [
 ]
 ```
 
-Availability checks are cached (15s for local, 10s for internet) to avoid latency on every turn.
+Las comprobaciones de disponibilidad se cachean (15s para local, 10s para internet) para evitar latencia en cada turno.
 
 ---
 
-## Self-Extending Agent
+## Agente Autoextensible
 
-`agents/agente.py` handles requests that fall outside `utils/acciones.py` known actions:
+`agents/agente.py` gestiona peticiones que quedan fuera de las acciones conocidas en `utils/acciones.py`:
 
-1. Detects if the request is executable as Python code
-2. Generates a snippet via Groq
-3. Asks user confirmation before executing
-4. Runs in a controlled subprocess with a destructive-operation blacklist
-5. Caches the capability in `capacidades.json` — no regeneration needed next time
+1. Detecta si la petición es ejecutable como código Python
+2. Genera un snippet vía Groq
+3. Pide confirmación al usuario antes de ejecutar
+4. Ejecuta en un subproceso controlado con lista negra de operaciones destructivas
+5. Cachea la capacidad en `capacidades.json` — no necesita regeneración la próxima vez
 
-**Blacklisted patterns (never executed):**
+**Patrones en lista negra (nunca se ejecutan):**
 ```python
 r"\bos\.remove\b", r"\bshutil\.rmtree\b", r"rm\s+-[rRfF]",
 r"del\s+/[sqSQ]", r"\bformat\b.*[A-Za-z]:\\", r"\bwinreg\b", r"HKEY_"
@@ -104,24 +104,24 @@ r"del\s+/[sqSQ]", r"\bformat\b.*[A-Za-z]:\\", r"\bwinreg\b", r"HKEY_"
 
 ---
 
-## Hot-reload Plugin System
+## Sistema de Plugins Hot-reload
 
-The `plugins/` directory is scanned every 30 seconds. Any new `.py` file dropped in is imported without restarting NOVA. Plugins follow a standard interface and are registered automatically.
+El directorio `plugins/` se escanea cada 30 segundos. Cualquier archivo `.py` nuevo que se deposite ahí se importa sin reiniciar NOVA. Los plugins siguen una interfaz estándar y se registran automáticamente.
 
-This allows LLM-generated capabilities to become available immediately and persist across sessions without code changes to core modules.
+Esto permite que las capacidades generadas por LLM estén disponibles de inmediato y persistan entre sesiones sin modificar los módulos del núcleo.
 
 ---
 
-## Design Decisions
+## Decisiones de Diseño
 
-**Why two nodes instead of one?**
-Oracle Cloud's Always Free tier provides a persistent ARM instance with enough RAM for 14B parameter models. Running DeepSeek-R1 there keeps the local PC free for real-time tasks (voice, UI). The cost is zero.
+**¿Por qué dos nodos en lugar de uno?**
+El nivel Always Free de Oracle Cloud proporciona una instancia ARM persistente con suficiente RAM para modelos de 14B parámetros. Ejecutar DeepSeek-R1 allí deja el PC local libre para tareas en tiempo real (voz, interfaz). El coste es cero.
 
-**Why Tailscale instead of public endpoints?**
-The almacén and Ollama APIs are internal services. Tailscale provides a private mesh with zero firewall configuration and mutual TLS. No port forwarding, no public exposure.
+**¿Por qué Tailscale en lugar de endpoints públicos?**
+El almacén y las APIs de Ollama son servicios internos. Tailscale proporciona una malla privada sin configuración de firewall y con TLS mutuo. Sin reenvío de puertos, sin exposición pública.
 
-**Why not a single monolithic memory?**
-Different layers serve different latency requirements. The JSON historial injects context in microseconds. ChromaDB answers semantic queries in milliseconds. SQLite holds the full audit trail without size limits. Oracle almacén is the sync point across sessions and nodes.
+**¿Por qué no una memoria monolítica?**
+Las distintas capas sirven distintos requisitos de latencia. El historial JSON inyecta contexto en microsegundos. ChromaDB responde consultas semánticas en milisegundos. SQLite mantiene el historial completo sin límite de tamaño. El almacén Oracle es el punto de sincronización entre sesiones y nodos.
 
-**Why hot-reload plugins?**
-Capability gaps become one-time events. A plugin generated during a session is available immediately and survives restarts. No code changes to core required.
+**¿Por qué plugins hot-reload?**
+Las lagunas de capacidad se convierten en eventos únicos. Un plugin generado durante una sesión está disponible de inmediato y sobrevive a los reinicios. No se requieren cambios en el núcleo.

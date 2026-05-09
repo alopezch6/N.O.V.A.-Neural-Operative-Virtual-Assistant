@@ -1,52 +1,52 @@
-# Infrastructure
+# Infraestructura
 
-## Two-Node Architecture
+## Arquitectura de Dos Nodos
 
-| Node | OS | Hardware | Role |
+| Nodo | SO | Hardware | Rol |
 |---|---|---|---|
-| Local PC | Windows 11 | NVIDIA GPU | Voice, UI, fast routing, offline fallback |
+| PC Local | Windows 11 | GPU NVIDIA | Voz, interfaz, enrutamiento rápido, fallback offline |
 | Oracle Cloud | Ubuntu ARM | Always Free (4 OCPU, 24GB RAM) | DeepSeek-R1:14b, Hermes3:8b, almacén REST |
 
 ---
 
-## Tailscale VPN
+## VPN Tailscale
 
-Both nodes are connected via Tailscale mesh VPN. All inter-node traffic flows through the private network:
+Ambos nodos están conectados mediante VPN mesh de Tailscale. Todo el tráfico entre nodos fluye por la red privada:
 
 ```
-PC  100.68.163.22  ←── Tailscale mesh ───→  Oracle  100.111.223.84
+PC  100.68.163.22  ←── malla Tailscale ───→  Oracle  100.111.223.84
 ```
 
-Services exposed only on the Tailscale interface (never public internet):
+Servicios expuestos únicamente en la interfaz Tailscale (nunca internet público):
 
-| Service | Node | Port |
+| Servicio | Nodo | Puerto |
 |---|---|---|
 | Ollama (DeepSeek-R1, Hermes3) | Oracle | 11434 |
 | Almacén REST | Oracle | 9101 |
-| Local health endpoint | PC | 5000 |
+| Endpoint de salud local | PC | 5000 |
 
-The watchdog on Oracle (`watchdog_oracle.py`) probes `http://100.68.163.22:5000/health` to detect if the PC is online. The local watchdog (`watchdog.py`) does the reverse for Oracle services.
+El watchdog en Oracle (`watchdog_oracle.py`) sondea `http://100.68.163.22:5000/health` para detectar si el PC está en línea. El watchdog local (`watchdog.py`) hace lo inverso para los servicios de Oracle.
 
 ---
 
-## Oracle Node Setup
+## Configuración del Nodo Oracle
 
 ### Ollama
 
 ```bash
-# Install Ollama
+# Instalar Ollama
 curl -fsSL https://ollama.com/install.sh | sh
 
-# Pull models
+# Descargar modelos
 ollama pull deepseek-r1:14b
 ollama pull hermes3:8b
 ```
 
 ### Almacén REST (nova-almacen)
 
-The almacén is a lightweight REST API (`infrastructure/almacen.py`) that stores the conversation historial as the distributed source of truth.
+El almacén es una API REST ligera (`infrastructure/almacen.py`) que almacena el historial de conversaciones como fuente de verdad distribuida.
 
-**Systemd service:** `/etc/systemd/system/nova-almacen.service`
+**Servicio systemd:** `/etc/systemd/system/nova-almacen.service`
 
 ```ini
 [Unit]
@@ -63,55 +63,55 @@ User=ubuntu
 WantedBy=multi-user.target
 ```
 
-### Telegram Bot (nova-telegram)
+### Bot de Telegram (nova-telegram)
 
-**Systemd service:** `/etc/systemd/system/nova-telegram.service`
+**Servicio systemd:** `/etc/systemd/system/nova-telegram.service`
 
-Same structure as above, pointing to `interfaces/telegram_bot.py`.
+Misma estructura que el anterior, apuntando a `interfaces/telegram_bot.py`.
 
 ---
 
-## Watchdog System
+## Sistema de Watchdogs
 
-Two independent watchdog layers:
+Dos capas de watchdog independientes:
 
-### Oracle Watchdog (`infrastructure/watchdog_oracle.py`)
+### Watchdog Oracle (`infrastructure/watchdog_oracle.py`)
 
-Runs as a cron job every minute on the Oracle node:
+Corre como tarea cron cada minuto en el nodo Oracle:
 
 ```cron
 */1 * * * * /usr/bin/python3 /home/ubuntu/nova/infrastructure/watchdog_oracle.py
 ```
 
-Checks:
-- `nova-almacen` and `nova-telegram` systemd service status
-- PC reachability via Tailscale (`/health` endpoint)
-- RAM, disk, CPU against configurable thresholds
-- Error count in last 100 journal lines
+Comprueba:
+- Estado de los servicios systemd `nova-almacen` y `nova-telegram`
+- Alcanzabilidad del PC vía Tailscale (endpoint `/health`)
+- RAM, disco y CPU frente a umbrales configurables
+- Conteo de errores en las últimas 100 líneas del journal
 
-Behavior:
-- **Service down:** attempts automatic `systemctl restart`, sends Telegram alert
-- **Resource threshold crossed:** Telegram alert on transition (low→high only, no spam)
-- **Recovery:** Telegram notification when state returns to normal
-- **State persistence:** `.watchdog_state.json` — only alerts on transitions, not every run
+Comportamiento:
+- **Servicio caído:** intenta `systemctl restart` automático, envía alerta por Telegram
+- **Umbral de recursos superado:** alerta por Telegram en la transición (bajo→alto, sin spam)
+- **Recuperación:** notificación por Telegram cuando el estado vuelve a la normalidad
+- **Persistencia de estado:** `.watchdog_state.json` — solo alerta en transiciones, no en cada ejecución
 
-### Local Watchdog (`infrastructure/watchdog.py`)
+### Watchdog Local (`infrastructure/watchdog.py`)
 
-Runs on the PC, monitors Oracle services from the other direction. Alerts via Telegram if Oracle becomes unreachable.
+Corre en el PC, monitoriza los servicios de Oracle desde el otro lado. Envía alerta vía Telegram si Oracle deja de ser accesible.
 
 ---
 
-## Environment Configuration
+## Configuración del Entorno
 
-All secrets and node addresses are managed via `.env`. See `.env.example` for a complete reference.
+Todos los secretos y direcciones de nodos se gestionan mediante `.env`. Ver `.env.example` como referencia completa.
 
-Key variables for infrastructure:
+Variables clave para la infraestructura:
 
 ```env
 OLLAMA_HOST_ORACLE=http://100.111.223.84:11434
 ALMACEN_URL=http://100.111.223.84:9101
-ALMACEN_TOKEN=your_sync_token
+ALMACEN_TOKEN=tu_token_de_sincronizacion
 PC_TAILSCALE_IP=100.68.163.22
-TELEGRAM_BOT_TOKEN=your_bot_token
-TELEGRAM_ALLOWED_ID=your_telegram_id
+TELEGRAM_BOT_TOKEN=tu_token_del_bot
+TELEGRAM_ALLOWED_ID=tu_id_de_telegram
 ```
