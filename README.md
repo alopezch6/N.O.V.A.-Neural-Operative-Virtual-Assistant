@@ -2,7 +2,7 @@
 
 Asistente de IA personal distribuido en dos nodos (PC local + Oracle Cloud), con enrutamiento adaptativo de LLMs, memoria semántica persistente, interfaz de voz y un sistema de agentes autoextensible.
 
-![NOVA Orb Widget](assets/orb.png) ![NOVA HUD](assets/hud.png) ![Arquitectura](assets/architecture.png)
+![NOVA Orb Widget](assets/orb.png) ![NOVA HUD](assets/hud.png)
 
 ---
 
