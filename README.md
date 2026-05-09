@@ -20,39 +20,7 @@ Asistente de IA personal distribuido en dos nodos (PC local + Oracle Cloud), con
 
 ## Arquitectura
 
-```mermaid
-graph TB
-    subgraph LOCAL ["🖥️ Nodo Local — Windows PC"]
-        NOVA[nova.py — Bucle Principal]
-        VOZ[Pipeline de Voz\nVosk · Whisper · Kokoro]
-        TG[Bot de Telegram]
-        WGT[Widget PySide6]
-        MEM[Memoria\nChromaDB · SQLite · JSON]
-        AGT[Sistema de Agentes\nReAct · Plugins Hot-reload]
-        QWEN[Qwen2.5:3b\nFallback Offline]
-    end
-
-    subgraph ORACLE ["☁️ Oracle Cloud — Ubuntu"]
-        DEEPSEEK[DeepSeek-R1:14b\nMotor de Razonamiento]
-        HERMES[Hermes3:8b\nAgente con Herramientas]
-        ALMACEN[Almacén REST :9101\nFuente de Verdad]
-        WD[Watchdog Oracle\nCron · Auto-restart]
-    end
-
-    subgraph CLOUD ["🌐 APIs Externas"]
-        GROQ[Groq API\ngpt-oss-120b · llama-3.3-70b]
-        ALEXA[Amazon Echo Dot\nTTS Remoto]
-        TAVILY[Tavily Search]
-    end
-
-    NOVA --> VOZ & TG & AGT & MEM & QWEN
-    WGT -->|endpoint de estado| NOVA
-    NOVA <-->|VPN Tailscale| DEEPSEEK & ALMACEN
-    NOVA --> GROQ & TAVILY
-    VOZ --> ALEXA
-    AGT --> HERMES
-    WD -->|monitoriza + reinicio automático| ALMACEN & DEEPSEEK
-```
+![Arquitectura](assets/architecture.png)
 
 **Enrutamiento:** clasificación por palabras clave en tiempo de ejecución → DeepSeek-R1 para razonamiento y código, Groq para respuestas conversacionales rápidas, Qwen2.5 como fallback offline. Automático y consciente de la latencia.
 
