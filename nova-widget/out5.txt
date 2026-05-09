@@ -1,0 +1,4 @@
+
+> nova-widget@2.1.0 start
+> electron .
+

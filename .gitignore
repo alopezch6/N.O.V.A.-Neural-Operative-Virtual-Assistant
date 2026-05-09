@@ -1,0 +1,71 @@
+# Secretos y configuración local
+.env
+
+# Claves SSH
+*.key
+*.pem
+nova_key
+nova_key.pub
+
+# Datos personales y conversaciones
+historial.json
+historial_telegram.json
+historial_*.json
+memoria.json
+notas.txt
+capturas/
+alexa_session/
+chroma_db/
+.watchdog_state.json
+*.jsonl
+tareas.json
+tareas_pendientes.json
+self_knowledge.json
+self_summary.json
+activaciones_aprendidas.json
+patrones_uso.json
+acciones_estado.json
+recordatorios.json
+twitch_streamers.json
+connect.txt
+
+# Bases de datos SQLite
+*.db
+
+# Audio temporal
+temp_audio.wav
+
+# Modelo de voz comprimido
+vosk-model.zip
+
+# Archivos de proyecto de video
+*.veg
+*.veg.bak
+
+# Archivos Claude/memoria de sesión
+.claude/
+memory/
+
+# Modelo de voz (grande, descargar por separado)
+vosk-model-small-es-0.42/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+
+# Node (widget y boot sequence)
+nova-widget/node_modules/
+nova-boot-sequence/node_modules/
+
+# Logs y temporales
+*.log
+*.tmp
+*.bak

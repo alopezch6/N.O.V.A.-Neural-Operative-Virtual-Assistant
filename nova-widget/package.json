@@ -1,0 +1,28 @@
+{
+  "name": "nova-widget",
+  "version": "2.1.0",
+  "description": "NOVA AI — Desktop widget always on top",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "pack": "electron-builder --win portable"
+  },
+  "build": {
+    "appId": "com.alex.nova-widget",
+    "productName": "NOVA Widget",
+    "win": {
+      "target": "portable",
+      "icon": "icon.ico"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "icon.ico",
+      "../nova-orb-3d.html"
+    ]
+  },
+  "devDependencies": {
+    "electron": "^33.4.11",
+    "electron-builder": "^24.13.3"
+  }
+}

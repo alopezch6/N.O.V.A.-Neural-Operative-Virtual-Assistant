@@ -1,0 +1,58 @@
+{
+  "discord": {
+    "path": "C:\\Users\\Alex\\AppData\\Local\\Discord\\app-1.0.9234\\discord.exe",
+    "display": "discord",
+    "uses": 2
+  },
+  "spotify": {
+    "path": "C:\\Users\\Alex\\AppData\\Local\\Microsoft\\WindowsApps\\spotify.EXE",
+    "display": "spotify",
+    "uses": 2
+  },
+  "opera": {
+    "path": "C:\\Users\\Alex\\AppData\\Local\\Programs\\Opera GX\\opera.exe",
+    "display": "opera",
+    "uses": 6
+  },
+  "steam": {
+    "path": "C:\\Program Files (x86)\\Steam\\steam.exe",
+    "display": "steam",
+    "uses": 3
+  },
+  "league of legends": {
+    "path": "D:\\Juegos\\Riot Games\\Riot Client\\RiotClientServices.exe",
+    "args": "--launch-product=league_of_legends --launch-patchline=live",
+    "display": "league of legends",
+    "uses": 1
+  },
+  "valorant": {
+    "path": "C:\\Program Files (x86)\\Overwolf\\OverwolfLauncher.exe",
+    "args": "-launchapp ipmlnnogholfmdmenfijjifldcpjoecappfccceh -from-desktop",
+    "display": "valorant",
+    "uses": 1
+  },
+  "nova": {
+    "path": "B:\\NOVA\\iniciar_nova.bat",
+    "args": "",
+    "display": "nova",
+    "uses": 1
+  },
+  "tu": {
+    "path": "B:\\TurtleWoW\\turtle-wow.exe",
+    "args": "",
+    "display": "tu",
+    "uses": 1
+  },
+  "winword": {
+    "path": "winword",
+    "args": "",
+    "display": "winword",
+    "uses": 1
+  },
+  "hm": {
+    "path": "C:\\Program Files\\Oracle\\VirtualBox\\VirtualBox.chm",
+    "args": "",
+    "display": "hm",
+    "uses": 1
+  }
+}

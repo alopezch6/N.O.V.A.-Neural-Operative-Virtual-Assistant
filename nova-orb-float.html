@@ -1,0 +1,689 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+html, body { background:transparent; overflow:hidden; width:100vw; height:100vh; }
+#main { display:block; position:absolute; top:0; left:0; width:100%; height:100%; }
+#glow { display:block; position:absolute; top:0; left:0; width:100%; height:100%;
+        mix-blend-mode:screen; pointer-events:none; opacity:0.75;
+        filter:blur(18px) brightness(2.0); }
+</style>
+</head>
+<body>
+<canvas id="main"></canvas>
+<canvas id="glow"></canvas>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+const MODES = {
+  idle:          { col:new THREE.Color(0xa855f7), col2:new THREE.Color(0x22d3ee), bloom:1.2, bloomR:0.4,  orbScale:1.0,  orbIntensity:0.25, orbScaleY:1.0, ringSpeed:0.5,  cageSpeed:0.18, particleMode:'drift',      particleFreeze:false, eqScale:0.25, arcOp:0.2,  alertShield:0.0, hueShift:false, fuzz:0.0,  warmth:0.0 },
+  listening:     { col:new THREE.Color(0x22d3ee), col2:new THREE.Color(0xa855f7), bloom:1.7, bloomR:0.55, orbScale:1.3,  orbIntensity:0.6,  orbScaleY:1.0, ringSpeed:1.4,  cageSpeed:0.42, particleMode:'converge',   particleFreeze:false, eqScale:0.9,  arcOp:0.5,  alertShield:0.0, hueShift:false, fuzz:0.0,  warmth:0.0 },
+  thinking:      { col:new THREE.Color(0xfb923c), col2:new THREE.Color(0xfde68a), bloom:2.0, bloomR:0.65, orbScale:1.15, orbIntensity:0.75, orbScaleY:1.0, ringSpeed:3.0,  cageSpeed:1.2,  particleMode:'spiral',     particleFreeze:false, eqScale:0.65, arcOp:0.7,  alertShield:0.0, hueShift:false, fuzz:0.0,  warmth:0.0 },
+  talking:       { col:new THREE.Color(0xe879f9), col2:new THREE.Color(0xc084fc), bloom:1.6, bloomR:0.5,  orbScale:1.28, orbIntensity:0.68, orbScaleY:1.0, ringSpeed:1.6,  cageSpeed:0.55, particleMode:'explode',    particleFreeze:false, eqScale:1.0,  arcOp:0.55, alertShield:0.0, hueShift:false, fuzz:0.0,  warmth:0.0 },
+  concentration: { col:new THREE.Color(0x6366f1), col2:new THREE.Color(0x818cf8), bloom:0.7, bloomR:0.2,  orbScale:0.52, orbIntensity:0.12, orbScaleY:1.0, ringSpeed:0.15, cageSpeed:0.04, particleMode:'freeze',     particleFreeze:true,  eqScale:0.05, arcOp:0.06, alertShield:0.0, hueShift:false, fuzz:0.0,  warmth:0.0 },
+  creative:      { col:new THREE.Color(0xa855f7), col2:new THREE.Color(0xe879f9), bloom:1.5, bloomR:0.8,  orbScale:1.6,  orbIntensity:1.4,  orbScaleY:1.0, ringSpeed:0.6,  cageSpeed:0.1,  particleMode:'nebula',     particleFreeze:false, eqScale:0.4,  arcOp:0.3,  alertShield:0.0, hueShift:true,  fuzz:0.85, warmth:0.0 },
+  alert:         { col:new THREE.Color(0xef4444), col2:new THREE.Color(0xfca5a5), bloom:1.9, bloomR:0.7,  orbScale:1.1,  orbIntensity:0.0,  orbScaleY:0.08,ringSpeed:2.5,  cageSpeed:2.5,  particleMode:'orbit-flat', particleFreeze:false, eqScale:0.0,  arcOp:0.0,  alertShield:1.0, hueShift:false, fuzz:0.0,  warmth:0.0 },
+  night:         { col:new THREE.Color(0xfbbf24), col2:new THREE.Color(0xf97316), bloom:0.6, bloomR:0.15, orbScale:0.85, orbIntensity:0.15, orbScaleY:1.0, ringSpeed:0.2,  cageSpeed:0.05, particleMode:'drift',      particleFreeze:false, eqScale:0.1,  arcOp:0.08, alertShield:0.0, hueShift:false, fuzz:0.3,  warmth:0.85 },
+};
+
+// ── Main renderer (full scene, transparent) ───────────────────────────────────
+const canvas = document.getElementById('main');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias:true, alpha:true, premultipliedAlpha:false });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.0;
+renderer.setClearColor(0x000000, 0);
+
+// ── Glow renderer (bright objects only → CSS blur + screen blend) ─────────────
+const glowCanvas = document.getElementById('glow');
+const glowRenderer = new THREE.WebGLRenderer({ canvas:glowCanvas, antialias:false, alpha:true, premultipliedAlpha:false });
+glowRenderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+glowRenderer.setSize(window.innerWidth, window.innerHeight);
+glowRenderer.toneMapping = THREE.ACESFilmicToneMapping;
+glowRenderer.toneMappingExposure = 1.8;
+glowRenderer.setClearColor(0x000000, 0);
+
+const scene  = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(65, window.innerWidth/window.innerHeight, 0.1, 1000);
+camera.position.set(0, 0, 135);
+
+const controls = new OrbitControls(camera, canvas);
+controls.enableDamping    = true;
+controls.dampingFactor    = 0.06;
+controls.minDistance      = 55;
+controls.maxDistance      = 280;
+controls.autoRotate       = true;
+controls.autoRotateSpeed  = 0.55;
+controls.mouseButtons     = { LEFT: null, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.ROTATE };
+
+const clock = new THREE.Clock();
+
+// ── Grupo principal — todo flota junto ────────────────────────────────────────
+const orbGroup = new THREE.Group();
+scene.add(orbGroup);
+
+// ── Lights ────────────────────────────────────────────────────────────────────
+scene.add(new THREE.AmbientLight(0x110022, 2.5));
+const coreLight = new THREE.PointLight(0xa855f7, 80, 200);
+orbGroup.add(coreLight);
+const rimLight = new THREE.PointLight(0x22d3ee, 28, 180);
+rimLight.position.set(55, 38, -65);
+orbGroup.add(rimLight);
+
+// ── Orb shaders ───────────────────────────────────────────────────────────────
+const ORB_VS = `
+uniform float uTime;
+uniform float uIntensity;
+uniform float uHeat;
+varying vec3  vNormal;
+varying vec3  vWorldPos;
+varying float vNoise;
+varying vec2  vUv;
+
+float hash(vec3 p){p=fract(p*vec3(127.1,311.7,74.7));p+=dot(p,p.yxz+19.19);return fract((p.x+p.y)*p.z);}
+float noise(vec3 x){vec3 i=floor(x),f=fract(x);f=f*f*(3.0-2.0*f);
+  return mix(mix(mix(hash(i),hash(i+vec3(1,0,0)),f.x),mix(hash(i+vec3(0,1,0)),hash(i+vec3(1,1,0)),f.x),f.y),
+             mix(mix(hash(i+vec3(0,0,1)),hash(i+vec3(1,0,1)),f.x),mix(hash(i+vec3(0,1,1)),hash(i+vec3(1,1,1)),f.x),f.y),f.z);}
+float fbm(vec3 p){float v=0.0,a=0.5;for(int i=0;i<5;i++){v+=a*noise(p);p=p*2.1+1.7;a*=0.5;}return v;}
+
+void main(){
+  vUv     = uv;
+  vNormal = normalize(normalMatrix * normal);
+  float n  = fbm(position * 0.11 + uTime * 0.21);
+  float n2 = fbm(position * 0.24 - uTime * 0.14 + 5.0);
+  float disp = (n + n2 * 0.5) * uIntensity * 9.5 * (1.0 + uHeat * 1.8);
+  vNoise = n;
+  vec3 newPos = position + normal * disp;
+  vWorldPos   = (modelMatrix * vec4(newPos, 1.0)).xyz;
+  gl_Position = projectionMatrix * modelViewMatrix * vec4(newPos, 1.0);
+}`;
+
+const ORB_FS = `
+uniform vec3  uColor;
+uniform vec3  uColor2;
+uniform float uIntensity;
+uniform float uTime;
+uniform float uAlertMode;
+uniform float uHue;
+uniform float uFuzz;
+uniform float uWarmth;
+varying vec3  vNormal;
+varying vec3  vWorldPos;
+varying float vNoise;
+varying vec2  vUv;
+
+vec3 hueShift(vec3 c,float h){vec3 k=vec3(0.57735);float ca=cos(h);return c*ca+cross(k,c)*sin(h)+k*dot(k,c)*(1.0-ca);}
+float hash(vec3 p){p=fract(p*vec3(127.1,311.7,74.7));p+=dot(p,p.yxz+19.19);return fract((p.x+p.y)*p.z);}
+float noise(vec3 x){vec3 i=floor(x),f=fract(x);f=f*f*(3.0-2.0*f);
+  return mix(mix(mix(hash(i),hash(i+vec3(1,0,0)),f.x),mix(hash(i+vec3(0,1,0)),hash(i+vec3(1,1,0)),f.x),f.y),
+             mix(mix(hash(i+vec3(0,0,1)),hash(i+vec3(1,0,1)),f.x),mix(hash(i+vec3(0,1,1)),hash(i+vec3(1,1,1)),f.x),f.y),f.z);}
+float fbm(vec3 p){float v=0.0,a=0.5;for(int i=0;i<4;i++){v+=a*noise(p);p=p*2.1+1.7;a*=0.5;}return v;}
+
+void main(){
+  vec3 viewDir = normalize(cameraPosition - vWorldPos);
+  float ndotv   = max(0.0, dot(vNormal, viewDir));
+  float fresnelExp = mix(1.6, 0.62, uFuzz);
+  float fresnel = pow(1.0 - ndotv, fresnelExp);
+  vec3 c1 = hueShift(uColor, uHue), c2 = hueShift(uColor2, uHue);
+
+  float veins = fbm(vWorldPos * 0.16 + uTime * 0.09);
+  vec3 base = mix(c1 * 0.12, c2 * 0.30, vNoise) + c1 * veins * 0.18;
+
+  vec3 rim = mix(c1 * 1.6, c2 * 2.2, fresnel);
+  float rimPow = pow(fresnel, mix(1.3, 0.7, uFuzz));
+
+  float coreBright = pow(ndotv, 5.0) * 0.55;
+  vec3 coreCol = mix(c2, vec3(1.0), coreBright * 0.5) * coreBright;
+
+  vec3 normal_col = base + rim * rimPow * (2.2 + uIntensity * 2.0) + coreCol;
+  float normal_a  = 0.04 + fresnel * mix(0.82, 0.95, uFuzz) + uIntensity * 0.18 + coreBright * 0.4;
+
+  // Modo nocturno: tinte cálido ámbar, reduce azul
+  vec3 warmTint = vec3(1.0, 0.84, 0.28);
+  normal_col = mix(normal_col, normal_col * warmTint * 1.15, uWarmth * 0.75);
+  normal_a   = mix(normal_a, normal_a * 0.85, uWarmth * 0.3);
+
+  vec2 uv2 = vUv*2.0-1.0; float r=length(uv2);
+  float interf = (sin(r*28.0-uTime*7.0)+sin(r*19.0+uTime*4.5))*0.5;
+  vec3 alert_col = mix(vec3(0.28,0.0,0.0),vec3(1.0,0.08,0.08),interf*0.5+0.5);
+  gl_FragColor = vec4(mix(normal_col,alert_col,uAlertMode), mix(normal_a,0.55+interf*0.35,uAlertMode));
+}`;
+
+const orbUniforms = {
+  uTime:      { value:0 },   uIntensity: { value:0.25 },
+  uColor:     { value:new THREE.Color(0xa855f7) },
+  uColor2:    { value:new THREE.Color(0x22d3ee) },
+  uAlertMode: { value:0 },   uHue:       { value:0 },
+  uFuzz:      { value:0 },   uWarmth:    { value:0 },
+  uHeat:      { value:0 },
+};
+const orbMesh = new THREE.Mesh(
+  new THREE.SphereGeometry(18, 96, 96),
+  new THREE.ShaderMaterial({ vertexShader:ORB_VS, fragmentShader:ORB_FS, uniforms:orbUniforms,
+    transparent:true, side:THREE.DoubleSide, depthWrite:false, blending:THREE.AdditiveBlending })
+);
+orbGroup.add(orbMesh);
+
+// Core + glow layers — also on layer 1 for glow renderer
+const coreMesh = new THREE.Mesh(new THREE.SphereGeometry(5,24,24), new THREE.MeshBasicMaterial({color:0xffffff}));
+orbGroup.add(coreMesh);
+const glowMesh = new THREE.Mesh(new THREE.SphereGeometry(10,24,24),
+  new THREE.MeshBasicMaterial({color:0xa855f7,transparent:true,opacity:0.35,blending:THREE.AdditiveBlending,depthWrite:false}));
+orbGroup.add(glowMesh);
+const extraGlow = [{r:16,op:0.22},{r:26,op:0.12},{r:38,op:0.065},{r:55,op:0.032},{r:78,op:0.014},{r:108,op:0.006}].map(({r,op})=>{
+  const m=new THREE.Mesh(new THREE.SphereGeometry(r,16,16),
+    new THREE.MeshBasicMaterial({color:0xa855f7,transparent:true,opacity:op,blending:THREE.AdditiveBlending,depthWrite:false}));
+  orbGroup.add(m); return m;
+});
+
+// Enable layer 1 on bright/emissive objects (glow renderer sees only these)
+const GLOW_LAYER = 1;
+orbMesh.layers.enable(GLOW_LAYER);
+coreMesh.layers.enable(GLOW_LAYER);
+glowMesh.layers.enable(GLOW_LAYER);
+extraGlow.slice(0, 2).forEach(m => m.layers.enable(GLOW_LAYER));
+coreLight.layers.enable(GLOW_LAYER);
+rimLight.layers.enable(GLOW_LAYER);
+
+// ── Rings ─────────────────────────────────────────────────────────────────────
+const rings = [
+  {r:27,tube:0.42,rx:0.3,         rz:0,            col:0xa855f7},
+  {r:35,tube:0.28,rx:Math.PI/3,   rz:Math.PI/4,    col:0x22d3ee},
+  {r:44,tube:0.20,rx:-Math.PI/3.5,rz:Math.PI/2.8,  col:0xe879f9},
+].map(d=>{
+  const m=new THREE.Mesh(new THREE.TorusGeometry(d.r,d.tube,8,128),
+    new THREE.MeshBasicMaterial({color:d.col,transparent:true,opacity:0.65,blending:THREE.AdditiveBlending,depthWrite:false}));
+  m.rotation.x=d.rx; m.rotation.z=d.rz; orbGroup.add(m); return m;
+});
+
+// ── Cage (wireframe) ──────────────────────────────────────────────────────────
+const cage = new THREE.LineSegments(
+  new THREE.EdgesGeometry(new THREE.IcosahedronGeometry(52,2)),
+  new THREE.LineBasicMaterial({color:0xa855f7,transparent:true,opacity:0.12,blending:THREE.AdditiveBlending,depthWrite:false})
+);
+orbGroup.add(cage);
+
+// Cage sólida — aparece en modo alerta (iAlertShield → opacidad)
+const cageSolid = new THREE.Mesh(
+  new THREE.IcosahedronGeometry(52, 1),
+  new THREE.MeshBasicMaterial({color:0xff1100,transparent:true,opacity:0,
+    blending:THREE.AdditiveBlending,depthWrite:false,side:THREE.BackSide})
+);
+orbGroup.add(cageSolid);
+cageSolid.layers.enable(GLOW_LAYER);
+
+// ── Heat corona — aparece cuando CPU/GPU están al límite ──────────────────────
+const heatCorona = new THREE.Mesh(
+  new THREE.SphereGeometry(22, 16, 16),
+  new THREE.MeshBasicMaterial({color:0xff5500,transparent:true,opacity:0,
+    blending:THREE.AdditiveBlending,depthWrite:false})
+);
+orbGroup.add(heatCorona);
+heatCorona.layers.enable(GLOW_LAYER);
+
+// ── Wake-word pulse rings (3 ondas concéntricas escalonadas) ──────────────────
+const wakePulses = Array.from({length:3}, (_,i) => {
+  const m = new THREE.Mesh(
+    new THREE.TorusGeometry(20, 0.65, 8, 80),
+    new THREE.MeshBasicMaterial({color:0xa855f7,transparent:true,opacity:0,
+      blending:THREE.AdditiveBlending,depthWrite:false})
+  );
+  m.visible = false;
+  orbGroup.add(m);
+  m.layers.enable(GLOW_LAYER);
+  return {mesh:m, life:-1, delay:i*0.22};
+});
+
+// ── Particles (350) ───────────────────────────────────────────────────────────
+const N=350, pPos=new Float32Array(N*3), pColor=new Float32Array(N*3), pData=[];
+for(let i=0;i<N;i++){
+  const th=Math.random()*Math.PI*2, ph=Math.acos(2*Math.random()-1), r=58+Math.random()*62;
+  const x=r*Math.sin(ph)*Math.cos(th), y=r*Math.sin(ph)*Math.sin(th), z=r*Math.cos(ph);
+  pPos[i*3]=x; pPos[i*3+1]=y; pPos[i*3+2]=z;
+  pColor[i*3]=0.66; pColor[i*3+1]=0.33; pColor[i*3+2]=0.97;
+  pData.push({baseR:r,r,theta:th,phi:ph,frozenX:x,frozenY:y,frozenZ:z,
+    speed:(Math.random()-0.5)*0.022, phiSpd:(Math.random()-0.5)*0.010,
+    rOff:Math.random()*Math.PI*2, spiralA:th, flatTheta:th});
+}
+const pGeo=new THREE.BufferGeometry();
+pGeo.setAttribute('position',new THREE.BufferAttribute(pPos,3));
+pGeo.setAttribute('color',new THREE.BufferAttribute(pColor,3));
+const pMat=new THREE.PointsMaterial({size:3.2,vertexColors:true,transparent:true,opacity:0.75,
+  blending:THREE.AdditiveBlending,depthWrite:false,sizeAttenuation:true});
+orbGroup.add(new THREE.Points(pGeo,pMat));
+
+// ── Crystals (16) ─────────────────────────────────────────────────────────────
+const crystals=Array.from({length:16},(_,i)=>{
+  const m=new THREE.LineSegments(
+    new THREE.EdgesGeometry(new THREE.TetrahedronGeometry(1.1+Math.random()*1.4)),
+    new THREE.LineBasicMaterial({color:[0xa855f7,0x22d3ee,0xe879f9,0xfb923c][i%4],transparent:true,opacity:0.6,blending:THREE.AdditiveBlending,depthWrite:false})
+  );
+  const ang=(i/16)*Math.PI*2, r=64+Math.random()*16, h=(Math.random()-.5)*36;
+  m.position.set(Math.cos(ang)*r,h,Math.sin(ang)*r);
+  m.userData={ang,r,h,spd:0.005+Math.random()*0.011,rot:0.025+Math.random()*0.03};
+  orbGroup.add(m); return m;
+});
+
+// ── Equalizer bars (64) ───────────────────────────────────────────────────────
+const EQ_N=64;
+const eqBars=Array.from({length:EQ_N},(_,i)=>{
+  const a=(i/EQ_N)*Math.PI*2;
+  const m=new THREE.Mesh(new THREE.BoxGeometry(1.4,1,1.4),
+    new THREE.MeshBasicMaterial({color:0xa855f7,transparent:true,opacity:0.55,blending:THREE.AdditiveBlending,depthWrite:false}));
+  m.position.set(Math.cos(a)*55,0,Math.sin(a)*55); m.lookAt(0,0,0); m.rotateX(Math.PI/2);
+  orbGroup.add(m); return {mesh:m,phase:Math.random()*Math.PI*2};
+});
+
+// ── Energy arcs (14) ──────────────────────────────────────────────────────────
+const arcs=Array.from({length:14},()=>{
+  const pts=new Float32Array(6), geo=new THREE.BufferGeometry();
+  geo.setAttribute('position',new THREE.BufferAttribute(pts,3));
+  const line=new THREE.Line(geo,new THREE.LineBasicMaterial({color:0xa855f7,transparent:true,opacity:0.3,blending:THREE.AdditiveBlending,depthWrite:false}));
+  orbGroup.add(line); return {line,geo,pts,target:Math.floor(Math.random()*N),life:Math.random()*0.6+0.2};
+});
+
+// ── Star field ────────────────────────────────────────────────────────────────
+const sPts=new Float32Array(900*3);
+for(let i=0;i<900;i++){const r=210+Math.random()*110,t=Math.random()*Math.PI*2,p=Math.acos(2*Math.random()-1);
+  sPts[i*3]=r*Math.sin(p)*Math.cos(t); sPts[i*3+1]=r*Math.sin(p)*Math.sin(t); sPts[i*3+2]=r*Math.cos(p);}
+const sGeo=new THREE.BufferGeometry(); sGeo.setAttribute('position',new THREE.BufferAttribute(sPts,3));
+scene.add(new THREE.Points(sGeo,new THREE.PointsMaterial({color:0x8888aa,size:0.4,transparent:true,opacity:0.35,depthWrite:false})));
+
+// ── Base opacidades extraGlow (fijas — no multiplicar en animate) ─────────────
+const EXTRA_GLOW_OPS = [0.22, 0.12, 0.065, 0.032, 0.014, 0.006];
+
+// ── Hue shift (Rodrigues RGB, igual que el shader) ────────────────────────────
+const _hueCol1 = new THREE.Color(), _hueCol2 = new THREE.Color();
+function hueShiftInto(dst, src, h) {
+  if (Math.abs(h) < 0.001) { dst.copy(src); return; }
+  const ca = Math.cos(h), sa = Math.sin(h), k = 0.57735;
+  const r = src.r, g = src.g, b = src.b, dot = k*(r+g+b);
+  dst.setRGB(
+    Math.max(0, r*ca + (k*b - k*g)*sa + k*dot*(1-ca)),
+    Math.max(0, g*ca + (k*r - k*b)*sa + k*dot*(1-ca)),
+    Math.max(0, b*ca + (k*g - k*r)*sa + k*dot*(1-ca))
+  );
+}
+
+// ── Heat color mixing ─────────────────────────────────────────────────────────
+const HEAT_COL = new THREE.Color(0xff5500);
+const _hCol1 = new THREE.Color(), _hCol2 = new THREE.Color();
+const _hShaderCol1 = new THREE.Color(), _hShaderCol2 = new THREE.Color();
+
+// ── State ─────────────────────────────────────────────────────────────────────
+let iCol=new THREE.Color(0xa855f7), iCol2=new THREE.Color(0x22d3ee);
+let iOrbInt=0.25, iOrbScale=1.0, iOrbScaleY=1.0, iAlertShield=0.0, iHue=0.0, iBloom=1.2, iBloomR=0.4;
+let iFuzz=0, iWarmth=0;
+let cpuLoad=0, iCpuLoad=0;
+let gpuLoad=0, iGpuLoad=0, iHeatLoad=0;
+let currentMode='idle', currentCfg=MODES.idle;
+let prevCfg=MODES.idle, transitionBlend=1.0;
+
+// ── Audio state ────────────────────────────────────────────────────────────────
+const audioBands  = new Float32Array(64);
+const iAudioBands = new Float32Array(64);
+let audioEnergy = 0, iAudioEnergy = 0;
+let audioActive = false, audioLastT = -5;
+
+function setMode(key) {
+  if(key===currentMode) return;
+  prevCfg=currentCfg;
+  currentMode=key; currentCfg=MODES[key]||MODES.idle;
+  transitionBlend=0;
+}
+
+// ── Wake-word pulse API ───────────────────────────────────────────────────────
+window.triggerWakePulse = () => {
+  wakePulses.forEach(p => { p.life = -p.delay; p.mesh.visible = false; });
+};
+
+// ── System load API (llamada desde Python via runJavaScript) ──────────────────
+window.updateSystemLoad = (data) => {
+  if(data.cpu !== undefined) cpuLoad = data.cpu / 100;
+  if(data.gpu !== undefined) gpuLoad = data.gpu / 100;
+};
+
+// ── Audio data API (llamada desde Python via runJavaScript) ───────────────────
+window.updateAudioData = (d) => {
+  if(d.b) for(let i=0;i<64;i++) audioBands[i] = d.b[i] || 0;
+  if(d.e !== undefined) audioEnergy = d.e;
+  audioLastT = time;
+};
+
+// ── WebSocket + HTTP fallback ─────────────────────────────────────────────────
+let ws=null, wsConnected=false, _oracleFails=0;
+const ORACLE_FAIL_THRESHOLD=15;
+
+function applyServerData(d) {
+  const mode=d.estado||d.state;
+  if(mode&&MODES[mode]&&mode!==currentMode) setMode(mode);
+  if(d.cpu!==undefined) cpuLoad=d.cpu/100;
+  if(d.gpu!==undefined) gpuLoad=d.gpu/100;
+  if(d.oracle!==undefined){
+    if(!d.oracle){ _oracleFails++; if(_oracleFails>=ORACLE_FAIL_THRESHOLD&&currentMode!=='alert') setMode('alert'); }
+    else{ _oracleFails=0; if(currentMode==='alert') setMode('idle'); }
+  }
+}
+
+function connectWS(){
+  try{
+    ws=new WebSocket('ws://localhost:5000/ws');
+    ws.onopen=()=>{wsConnected=true;};
+    ws.onclose=()=>{wsConnected=false;ws=null;setTimeout(connectWS,6000);};
+    ws.onerror=()=>{ws=null;wsConnected=false;};
+    ws.onmessage=ev=>{try{applyServerData(JSON.parse(ev.data));}catch{}};
+  }catch{}
+}
+connectWS();
+setInterval(async()=>{
+  if(wsConnected) return;
+  try{const r=await fetch('http://localhost:5000/status',{signal:AbortSignal.timeout(900)});
+    if(r.ok) applyServerData(await r.json());}catch{}
+},3000);
+
+// ── Vida propia ───────────────────────────────────────────────────────────────
+let lifePulseRate=1.0, lifeNextPulseChange=3.0;
+let lifeEventTimer=6.0;
+let lifeEvInt=0, lifeEvHue=0, lifeEvScale=0;
+let lifeDormancy=0, lifeLastActivity=0;
+let lifeCursorX=0, lifeCursorY=0;
+let lifeCpuPrev=0, lifeCpuSpike=0;
+
+document.addEventListener('mousemove', e => {
+  lifeLastActivity = time;
+  const rect = canvas.getBoundingClientRect();
+  lifeCursorX = (e.clientX - rect.left) / rect.width  * 2 - 1;
+  lifeCursorY = (e.clientY - rect.top)  / rect.height * 2 - 1;
+});
+
+// ── Animation ─────────────────────────────────────────────────────────────────
+let time=0;
+
+function animate(ts){
+  requestAnimationFrame(animate);
+  const delta=Math.min(clock.getDelta(),0.05), dt=delta*60;
+  time+=delta;
+
+  // Transición suavizada entre modos (1.5 s, smoothstep)
+  transitionBlend=Math.min(1.0, transitionBlend+delta/1.5);
+  const tb=transitionBlend*transitionBlend*(3-2*transitionBlend);
+  const bCfg={
+    ringSpeed:  prevCfg.ringSpeed  +(currentCfg.ringSpeed  -prevCfg.ringSpeed) *tb,
+    cageSpeed:  prevCfg.cageSpeed  +(currentCfg.cageSpeed  -prevCfg.cageSpeed) *tb,
+    eqScale:    prevCfg.eqScale    +(currentCfg.eqScale    -prevCfg.eqScale)   *tb,
+    arcOp:      prevCfg.arcOp      +(currentCfg.arcOp      -prevCfg.arcOp)     *tb,
+    particleMode:   tb>0.5?currentCfg.particleMode  :prevCfg.particleMode,
+    particleFreeze: tb>0.5?currentCfg.particleFreeze:prevCfg.particleFreeze,
+  };
+
+  const cfg=currentCfg, L=Math.min(0.018*dt,0.07);
+  iCol.lerp(cfg.col,L); iCol2.lerp(cfg.col2,L);
+  iOrbInt      +=(cfg.orbIntensity -iOrbInt)      *L;
+  iOrbScale    +=(cfg.orbScale     -iOrbScale)     *L;
+  iOrbScaleY   +=(cfg.orbScaleY   -iOrbScaleY)    *L;
+  iAlertShield +=(cfg.alertShield  -iAlertShield)  *L;
+  iBloom       +=(cfg.bloom        -iBloom)        *L;
+  iBloomR      +=(cfg.bloomR       -iBloomR)       *L;
+  iFuzz        +=(cfg.fuzz         -iFuzz)         *L;
+  iWarmth      +=(cfg.warmth       -iWarmth)       *L;
+  if(cfg.hueShift) iHue+=delta*0.4; else iHue+=(-iHue)*L;
+  iCpuLoad  +=(cpuLoad  -iCpuLoad)  *0.02*dt;
+  iGpuLoad  +=(gpuLoad  -iGpuLoad)  *0.02*dt;
+  iHeatLoad +=(Math.max(iCpuLoad,iGpuLoad)-iHeatLoad)*0.04*dt;
+
+  // smClamp: 1.0 en reposo, sube hasta 3.5x cuando CPU/GPU al máximo
+  const smClamp=Math.max(1.0,Math.min(3.5,1.0+iHeatLoad*2.5));
+
+  // ── Audio smoothing ───────────────────────────────────────────────────────────
+  audioActive = (time - audioLastT) < 0.5;
+  const aL = Math.min(0.22*dt, 0.75);
+  for(let i=0;i<64;i++)
+    iAudioBands[i] += ((audioActive ? audioBands[i] : 0) - iAudioBands[i]) * aL;
+  iAudioEnergy += ((audioActive ? audioEnergy : 0) - iAudioEnergy) * aL;
+  // audioPlaying: solo activo cuando hay energía real (evita que silencio = desync)
+  const audioPlaying = audioActive && iAudioEnergy > 0.05;
+  // audioMult: silencio→1.0, lo-fi→0.4 (lento), energético→3.5 (agresivo)
+  const audioMult = audioPlaying ? Math.max(0.4, iAudioEnergy * 3.5) : 1.0;
+
+  // ── Vida propia: sistemas autónomos ──────────────────────────────────────────
+
+  // Respiración — base tranquila, se acelera levemente con calor
+  const pulseRate = 1.1 + iHeatLoad * 1.4;
+  const pulse=Math.sin(time*pulseRate)*0.07+1.0;
+
+  // Wobble orgánico — nunca perfectamente esférico
+  const wX=1+Math.sin(time*1.28)*0.024+Math.sin(time*2.71)*0.009;
+  const wZ=1+Math.cos(time*1.07)*0.021+Math.cos(time*2.33)*0.008;
+  const sc=iOrbScale*pulse;
+
+  // Float — mismas frecuencias que el wander de la ventana Python (0.19/0.07/0.25/0.11)
+  const floatX=Math.sin(time*0.19)*3.8+Math.sin(time*0.07)*1.8;
+  const floatY=Math.sin(time*0.25)*4.2+Math.cos(time*0.11)*2.2;
+  const floatZ=Math.sin(time*0.14)*2.5;
+  orbGroup.position.set(floatX, floatY, floatZ);
+
+  // Atracción al cursor — el orbe se inclina hacia donde apunta el ratón
+  const tiltX= lifeCursorY*0.18, tiltY= lifeCursorX*0.18;
+  orbMesh.rotation.x+=(tiltX-orbMesh.rotation.x)*0.035*dt;
+  orbMesh.rotation.y+=(tiltY-orbMesh.rotation.y)*0.035*dt;
+
+  // Dormancia — baja intensidad si no hay actividad en 90s
+  const idle90=time-lifeLastActivity>90&&currentMode==='idle';
+  lifeDormancy+=idle90?delta*0.008:-delta*1.5;
+  lifeDormancy=Math.max(0,Math.min(1,lifeDormancy));
+  const dormFactor=1-lifeDormancy*0.72;
+
+  // Reacción a CPU spike
+  const cpuDelta=iCpuLoad-lifeCpuPrev; lifeCpuPrev=iCpuLoad;
+  if(cpuDelta>0.05) lifeCpuSpike=Math.min(1,lifeCpuSpike+cpuDelta*4);
+  lifeCpuSpike*=Math.pow(0.92,dt);
+  lifeEvInt=Math.max(lifeEvInt, lifeCpuSpike*0.5);
+
+  // Eventos aleatorios (solo en idle, cada 8-16s)
+  lifeEventTimer-=delta;
+  if(lifeEventTimer<=0&&currentMode==='idle'){
+    const t=Math.floor(Math.random()*4);
+    if(t===0) lifeEvInt =Math.max(lifeEvInt, 0.9);
+    if(t===1) lifeEvHue +=Math.PI*(Math.random()<.5?1:-1)*0.8;
+    if(t===2) lifeEvScale=Math.max(lifeEvScale, 0.22);
+    lifeEventTimer=8+Math.random()*14;
+  }
+  lifeEvInt  *=Math.pow(0.91,dt);
+  lifeEvHue  *=Math.pow(0.93,dt);
+  lifeEvScale*=Math.pow(0.88,dt);
+
+  const finalInt  =Math.min(2.0,(iOrbInt+lifeEvInt)*dormFactor);
+  const finalScale=sc*(1+lifeEvScale);
+  const finalHue  =iHue+lifeEvHue;
+
+  // Colores: hue shift aplicado a todas las capas de material
+  hueShiftInto(_hueCol1, iCol,  finalHue);
+  hueShiftInto(_hueCol2, iCol2, finalHue);
+
+  // Mezcla de calor: CPU/GPU alto → deriva hacia naranja/rojo en todas las capas
+  const heatMix = Math.max(0, (iHeatLoad - 0.45) * 1.82);
+  _hCol1.copy(_hueCol1).lerp(HEAT_COL, Math.min(0.65, heatMix * 0.5));
+  _hCol2.copy(_hueCol2).lerp(HEAT_COL, Math.min(0.45, heatMix * 0.3));
+  const hCol1 = _hCol1, hCol2 = _hCol2;
+
+  // Colores para el shader (iCol base + heat, sin hue-shift — el shader lo aplica internamente)
+  _hShaderCol1.copy(iCol).lerp(HEAT_COL,  Math.min(0.65, heatMix * 0.5));
+  _hShaderCol2.copy(iCol2).lerp(HEAT_COL, Math.min(0.45, heatMix * 0.3));
+
+  // ── Orb ───────────────────────────────────────────────────────────────────────
+  orbMesh.scale.set(finalScale*wX, finalScale*iOrbScaleY, finalScale*wZ);
+  orbUniforms.uTime.value      = time;
+  orbUniforms.uIntensity.value = finalInt;
+  orbUniforms.uColor.value.copy(_hShaderCol1);
+  orbUniforms.uColor2.value.copy(_hShaderCol2);
+  orbUniforms.uAlertMode.value = iAlertShield;
+  orbUniforms.uHue.value       = finalHue;
+  orbUniforms.uFuzz.value      = iFuzz;
+  orbUniforms.uWarmth.value    = iWarmth;
+  orbUniforms.uHeat.value      = iHeatLoad;
+
+  coreMesh.scale.setScalar(finalScale*0.9);
+  coreMesh.material.color.setRGB(dormFactor, dormFactor, dormFactor);
+  glowMesh.material.color.copy(hCol1); glowMesh.material.opacity=(0.16+finalInt*0.4)*dormFactor; glowMesh.scale.setScalar(finalScale*1.1);
+  extraGlow.forEach((m,i)=>{m.material.color.copy(hCol1); m.material.opacity=EXTRA_GLOW_OPS[i]*(0.5+finalInt*0.5)*dormFactor; m.scale.setScalar(finalScale);});
+  coreLight.color.copy(hCol1); coreLight.intensity=(50+finalInt*105)*Math.min(smClamp,2.0)*dormFactor;
+  rimLight.color.copy(hCol2); rimLight.intensity=28*dormFactor;
+
+  // ── Wake-word pulses ──────────────────────────────────────────────────────────
+  wakePulses.forEach(p => {
+    if(p.life < -0.001) { p.life += delta; return; }
+    if(!p.mesh.visible) p.mesh.visible = true;
+    p.life += delta;
+    const t = Math.min(1, p.life / 1.4);
+    p.mesh.scale.setScalar(finalScale * (1 + t * 3.2));
+    p.mesh.material.color.copy(hCol1);
+    p.mesh.material.opacity = Math.max(0, (1-t)*(1-t)*0.9);
+    if(t >= 1) { p.mesh.visible = false; p.life = -999; }
+  });
+
+  // ── Rings — usan finalScale y dormFactor ──────────────────────────────────────
+  const rs=bCfg.ringSpeed*0.003*smClamp*dt;
+  rings[0].rotation.y+=rs; rings[1].rotation.z+=rs*0.65; rings[2].rotation.x+=rs*0.45;
+  rings.forEach((r,i)=>{r.material.color.copy(i===1?hCol2:hCol1); r.material.opacity=(0.4+finalInt*0.42)*dormFactor; r.scale.setScalar(finalScale*0.96+0.04);});
+
+  // ── Cage wireframe + cage sólida (alerta) ─────────────────────────────────────
+  cage.rotation.x+=bCfg.cageSpeed*0.003*smClamp*dt; cage.rotation.y+=bCfg.cageSpeed*0.002*smClamp*dt;
+  cage.material.color.copy(hCol1); cage.material.opacity=(0.06+finalInt*0.11)*dormFactor;
+  cage.scale.setScalar(iOrbScale*0.97+0.03);
+  // Cage sólida: copia rotación de la wireframe, visible solo en alerta
+  cageSolid.rotation.copy(cage.rotation);
+  cageSolid.scale.setScalar(cage.scale.x * 1.005);
+  cageSolid.material.color.copy(hCol1);
+  cageSolid.material.opacity = iAlertShield * 0.18 * dormFactor;
+
+  // ── Heat corona ───────────────────────────────────────────────────────────────
+  const heatGlow = Math.max(0, (iHeatLoad - 0.5) * 2.0);
+  heatCorona.scale.setScalar(finalScale * (1.2 + heatGlow * 0.8));
+  heatCorona.material.opacity = heatGlow * 0.32 * dormFactor;
+
+  // ── Crystals — color sigue el modo y calor ────────────────────────────────────
+  if(currentMode!=='concentration'){
+    crystals.forEach((c,i)=>{
+      const d=c.userData;
+      d.ang+=d.spd*smClamp*dt*(currentMode==='thinking'?3:1);
+      c.position.x=Math.cos(d.ang)*d.r; c.position.z=Math.sin(d.ang)*d.r;
+      c.position.y=d.h+Math.sin(time*0.6+d.ang)*5;
+      c.rotation.x+=d.rot*dt; c.rotation.y+=d.rot*0.7*dt;
+      c.material.color.copy(i%2===0?hCol1:hCol2);
+      c.material.opacity=(0.4+finalInt*0.35)*dormFactor;
+    });
+  } else {
+    crystals.forEach(c=>{if(c.material.opacity>0) c.material.opacity=Math.max(0,c.material.opacity-0.01*dt);});
+  }
+
+  // ── Particles ─────────────────────────────────────────────────────────────────
+  const posAttr=pGeo.attributes.position, colAttr=pGeo.attributes.color;
+  // En idle, la energía musical sobreescribe el modo de partículas
+  let mode=bCfg.particleMode;
+  if(audioPlaying && mode==='drift'){
+    if(iAudioEnergy>0.60) mode='explode';
+    else if(iAudioEnergy<0.20) mode='spiral';
+  }
+  for(let i=0;i<N;i++){
+    const d=pData[i]; let x,y,z;
+    if(bCfg.particleFreeze){
+      x=posAttr.getX(i)+(d.frozenX-posAttr.getX(i))*0.02*dt;
+      y=posAttr.getY(i)+(d.frozenY-posAttr.getY(i))*0.02*dt;
+      z=posAttr.getZ(i)+(d.frozenZ-posAttr.getZ(i))*0.02*dt;
+    } else if(mode==='drift'){
+      d.r+=(d.baseR-d.r)*0.012*dt; d.theta+=d.speed*dt*smClamp*audioMult; d.phi+=d.phiSpd*dt*smClamp*audioMult;
+      const rr=d.r+Math.sin(time*0.4+d.rOff)*7;
+      x=rr*Math.sin(d.phi)*Math.cos(d.theta); y=rr*Math.sin(d.phi)*Math.sin(d.theta); z=rr*Math.cos(d.phi);
+    } else if(mode==='converge'){
+      d.r-=0.06*smClamp*dt*audioMult;
+      if(d.r<25){d.r=108+Math.random()*20;d.theta=Math.random()*Math.PI*2;d.phi=Math.acos(2*Math.random()-1);}
+      d.theta+=0.015*dt*audioMult;
+      x=d.r*Math.sin(d.phi)*Math.cos(d.theta); y=d.r*Math.sin(d.phi)*Math.sin(d.theta); z=d.r*Math.cos(d.phi);
+    } else if(mode==='spiral'){
+      d.spiralA+=0.03*smClamp*dt*audioMult;
+      const rr=d.baseR*0.6+Math.sin(time*3+d.rOff)*25;
+      y=posAttr.getY(i)+Math.sin(time*1.5+i*0.07)*0.04*dt; x=rr*Math.cos(d.spiralA); z=rr*Math.sin(d.spiralA);
+    } else if(mode==='explode'){
+      d.r+=0.14*dt*audioMult; if(d.r>145){d.r=58+Math.random()*8;d.theta=Math.random()*Math.PI*2;d.phi=Math.acos(2*Math.random()-1);}
+      d.theta+=d.speed*0.5*dt*audioMult;
+      x=d.r*Math.sin(d.phi)*Math.cos(d.theta); y=d.r*Math.sin(d.phi)*Math.sin(d.theta); z=d.r*Math.cos(d.phi);
+    } else if(mode==='nebula'){
+      d.theta+=d.speed*0.15*dt*audioMult; d.phi+=d.phiSpd*0.1*dt*audioMult; d.r+=(d.baseR*1.55-d.r)*0.005*dt;
+      const rr=d.r+Math.sin(time*0.2+d.rOff)*18;
+      x=rr*Math.sin(d.phi)*Math.cos(d.theta); y=rr*Math.sin(d.phi)*Math.sin(d.theta); z=rr*Math.cos(d.phi);
+    } else if(mode==='orbit-flat'){
+      d.flatTheta+=0.04*smClamp*dt*audioMult; const rr=58+Math.sin(time*2+d.rOff)*20;
+      x=rr*Math.cos(d.flatTheta); y=Math.sin(time*4+i*0.1)*4; z=rr*Math.sin(d.flatTheta);
+    } else {
+      x=posAttr.getX(i); y=posAttr.getY(i); z=posAttr.getZ(i);
+    }
+    posAttr.setXYZ(i,x,y,z);
+    const blend=Math.sin(time*0.55+i*0.009)*0.5+0.5;
+    colAttr.setXYZ(i,hCol1.r+(hCol2.r-hCol1.r)*blend,hCol1.g+(hCol2.g-hCol1.g)*blend,hCol1.b+(hCol2.b-hCol1.b)*blend);
+  }
+  posAttr.needsUpdate=true; colAttr.needsUpdate=true;
+  pMat.opacity=(bCfg.particleFreeze?0.28:0.72)*dormFactor;
+
+  // ── EQ bars — audio real cuando disponible, sintético en standby ─────────────
+  eqBars.forEach((bar,i)=>{
+    let val;
+    if(audioPlaying){
+      val = iAudioBands[i] * bCfg.eqScale * smClamp;
+    } else {
+      const v1=Math.sin(time*9+bar.phase)*Math.sin(time*5.5-i*0.22);
+      val=Math.abs((v1+Math.sin(time*3.5+i*0.28))*0.5)*bCfg.eqScale*smClamp;
+    }
+    const h=0.5+val*26;
+    bar.mesh.scale.y=h; bar.mesh.position.y=h*0.5;
+    bar.mesh.material.color.copy(i%2===0?hCol1:hCol2); bar.mesh.material.opacity=(0.2+val*0.55)*dormFactor;
+  });
+
+  // ── Arcs ──────────────────────────────────────────────────────────────────────
+  arcs.forEach(arc=>{
+    arc.life-=0.007*dt;
+    if(arc.life<=0){arc.target=Math.floor(Math.random()*N);arc.life=0.4+Math.random()*0.6;}
+    arc.pts[3]=posAttr.getX(arc.target); arc.pts[4]=posAttr.getY(arc.target); arc.pts[5]=posAttr.getZ(arc.target);
+    arc.geo.attributes.position.needsUpdate=true;
+    arc.line.material.color.copy(hCol1); arc.line.material.opacity=arc.life*(bCfg.arcOp+0.25)*dormFactor;
+  });
+
+  controls.update();
+
+  // Render main canvas (all layers — full scene, transparent)
+  camera.layers.enableAll();
+  renderer.render(scene, camera);
+
+  // Render glow canvas (layer 1 only — bright orb objects, blurred via CSS)
+  camera.layers.set(GLOW_LAYER);
+  glowRenderer.render(scene, camera);
+  camera.layers.enableAll();
+
+  // Animate CSS glow filter based on current bloom strength
+  const blurPx = (12 + iBloom * 7 * iBloomR).toFixed(1);
+  const brt     = (1.2 + iBloom * 0.40).toFixed(2);
+  glowCanvas.style.filter = `blur(${blurPx}px) brightness(${brt})`;
+}
+
+requestAnimationFrame(animate);
+
+window.addEventListener('resize',()=>{
+  camera.aspect=window.innerWidth/window.innerHeight; camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth,window.innerHeight);
+  glowRenderer.setSize(window.innerWidth,window.innerHeight);
+});
+</script>
+</body>
+</html>

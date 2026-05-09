@@ -1,0 +1,9 @@
+B:\NOVA\nova-widget\main.js:210
+  app.whenReady().then(() => {
+      ^
+
+TypeError: Cannot read properties of undefined (reading 'whenReady')
+    at Immediate.main (B:\NOVA\nova-widget\main.js:210:7)
+    at process.processImmediate (node:internal/timers:483:21)
+
+Node.js v20.18.3

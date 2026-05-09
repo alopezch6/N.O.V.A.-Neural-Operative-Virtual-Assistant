@@ -1,0 +1,844 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>N.O.V.A — Neural Operative Virtual Assistant</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap');
+
+  :root {
+    --violet: #a855f7;
+    --vbright: #c084fc;
+    --cyan: #22d3ee;
+    --pink: #e879f9;
+    --green: #4ade80;
+    --orange: #fb923c;
+    --bg: #04000f;
+    --gv: 0 0 12px #a855f7, 0 0 40px #7c3aed44;
+    --gc: 0 0 12px #22d3ee, 0 0 40px #0891b244;
+  }
+
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:var(--bg); color:var(--vbright); font-family:'Share Tech Mono',monospace; height:100vh; overflow:hidden; cursor:none; }
+
+  .cursor { position:fixed; width:18px; height:18px; border:1px solid var(--cyan); border-radius:50%; pointer-events:none; z-index:9999; transform:translate(-50%,-50%); box-shadow:var(--gc); transition: border-color 0.3s; }
+  .cursor::after { content:''; position:absolute; width:4px; height:4px; background:var(--cyan); border-radius:50%; top:50%; left:50%; transform:translate(-50%,-50%); }
+
+  body::before { content:''; position:fixed; inset:0; background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(168,85,247,0.012) 2px,rgba(168,85,247,0.012) 4px); pointer-events:none; z-index:100; }
+  body::after  { content:''; position:fixed; inset:0; background:radial-gradient(ellipse at center,transparent 35%,rgba(0,0,0,0.85) 100%); pointer-events:none; z-index:99; }
+
+  .scan-line { position:fixed; left:0; right:0; height:1px; background:linear-gradient(90deg,transparent,var(--violet),var(--cyan),transparent); opacity:0; animation:scan 8s linear infinite; pointer-events:none; z-index:101; }
+  @keyframes scan { 0%{top:0;opacity:0.4} 100%{top:100%;opacity:0} }
+
+  /* Flash de estado en bordes */
+  .state-flash {
+    position:fixed; inset:0; pointer-events:none; z-index:98;
+    opacity:0; transition: opacity 0.4s;
+  }
+
+  .hud { position:relative; width:100vw; height:100vh; display:flex; align-items:center; justify-content:center; }
+
+  .corner { position:absolute; width:28px; height:28px; border-color:var(--violet); border-style:solid; opacity:0.4; transition: border-color 0.5s, opacity 0.5s; }
+  .corner-tl { top:18px; left:18px; border-width:2px 0 0 2px; }
+  .corner-tr { top:18px; right:18px; border-width:2px 2px 0 0; }
+  .corner-bl { bottom:18px; left:18px; border-width:0 0 2px 2px; }
+  .corner-br { bottom:18px; right:18px; border-width:0 2px 2px 0; }
+
+  #nova-canvas { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); z-index:2; }
+
+  .panel { position:absolute; font-size:10px; line-height:1.9; z-index:10; transition: opacity 0.5s; }
+  .panel-left  { left:24px; top:50%; transform:translateY(-50%); }
+  .panel-right { right:24px; top:50%; transform:translateY(-50%); text-align:right; }
+  .panel-top   { top:26px; left:50%; transform:translateX(-50%); text-align:center; white-space:nowrap; }
+  .panel-bottom { bottom:26px; left:50%; transform:translateX(-50%); text-align:center; }
+
+  .p-label { font-size:8px; letter-spacing:2px; text-transform:uppercase; color:var(--cyan); opacity:0.5; margin-bottom:3px; }
+  .p-value { font-family:'Orbitron',sans-serif; font-size:13px; font-weight:700; color:var(--vbright); text-shadow:var(--gv); }
+  .p-divider { border:none; border-top:1px solid rgba(168,85,247,0.2); margin:10px 0; }
+  .p-small { font-size:9px; opacity:0.6; line-height:1.8; }
+
+  .bar-wrap { width:130px; margin:5px 0; }
+  .bar-name { font-size:8px; color:var(--cyan); opacity:0.5; letter-spacing:1px; margin-bottom:2px; display:flex; justify-content:space-between; }
+  .bar-track { height:2px; background:rgba(168,85,247,0.12); border-radius:1px; overflow:hidden; }
+  .bar-fill { height:100%; border-radius:1px; transition:width 1.2s ease; background:linear-gradient(90deg,var(--violet),var(--cyan)); box-shadow:0 0 6px var(--violet); }
+
+  /* Módulos */
+  .modules-container { display:flex; flex-direction:column; gap:8px; width:190px; }
+  .module-card { position:relative; border:1px solid rgba(168,85,247,0.18); padding:8px 10px; overflow:hidden; background:rgba(10,0,25,0.6); }
+  .module-card::before { content:''; position:absolute; top:0; left:0; right:0; height:1px; background:linear-gradient(90deg,transparent,var(--col,#a855f7),transparent); opacity:0.6; }
+  .module-top { display:flex; align-items:center; gap:8px; margin-bottom:5px; }
+  .module-info { flex:1; min-width:0; }
+  .module-name { font-family:'Orbitron',sans-serif; font-size:8px; letter-spacing:1.5px; color:var(--vbright); }
+  .module-sub  { font-size:7px; letter-spacing:1px; margin-top:1px; opacity:0.5; }
+  .module-bottom { display:flex; justify-content:space-between; align-items:center; margin-top:4px; }
+  .module-counter { font-size:7px; color:var(--cyan); opacity:0.45; letter-spacing:0.5px; }
+
+  /* STATUS BADGE — grande y visible */
+  .status-badge {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 20;
+    pointer-events: none;
+    text-align: center;
+    transition: opacity 0.4s;
+  }
+  .status-icon {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 11px;
+    letter-spacing: 5px;
+    font-weight: 900;
+    text-transform: uppercase;
+    transition: color 0.4s, text-shadow 0.4s;
+  }
+  .status-sub {
+    font-size: 8px;
+    letter-spacing: 3px;
+    opacity: 0.45;
+    margin-top: 3px;
+    color: var(--cyan);
+  }
+
+  .nova-title { font-family:'Orbitron',sans-serif; font-size:24px; font-weight:900; letter-spacing:10px; background:linear-gradient(90deg,var(--violet),var(--cyan),var(--pink)); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; filter:drop-shadow(0 0 12px rgba(168,85,247,0.8)); animation:flicker 10s infinite; }
+  .nova-sub { font-size:8px; letter-spacing:4px; color:var(--cyan); opacity:0.4; margin-top:5px; }
+
+  .status-main { font-family:'Orbitron',sans-serif; font-size:11px; letter-spacing:4px; color:var(--vbright); text-shadow:var(--gv); margin-bottom:6px; transition: color 0.4s, text-shadow 0.4s; }
+
+  .state-controls { position:absolute; bottom:60px; left:50%; transform:translateX(-50%); display:flex; gap:10px; z-index:20; }
+  .state-btn { background:transparent; border:1px solid rgba(168,85,247,0.4); color:var(--vbright); font-family:'Share Tech Mono',monospace; font-size:8px; letter-spacing:2px; padding:6px 14px; cursor:pointer; opacity:0.5; transition:all 0.25s; text-transform:uppercase; }
+  .state-btn:hover,.state-btn.active { opacity:1; background:rgba(168,85,247,0.1); border-color:var(--violet); box-shadow:var(--gv); color:#fff; }
+
+  .blink { animation:blink 4s step-end infinite; }
+  @keyframes blink { 0%,89%,100%{opacity:1} 90%,95%{opacity:0.1} }
+  @keyframes flicker { 0%,93%,100%{opacity:1} 94%{opacity:0.7} 96%{opacity:1} 97%{opacity:0.5} 99%{opacity:1} }
+
+  .dgrid { display:grid; grid-template-columns:1fr 1fr; gap:8px 18px; margin-top:6px; }
+  .ditem .dl { font-size:7px; color:var(--cyan); opacity:0.4; letter-spacing:1px; }
+  .ditem .dv { font-family:'Orbitron',sans-serif; font-size:11px; color:var(--vbright); }
+
+  @keyframes flowParticle {
+    0%{left:-20px;opacity:0} 8%{opacity:0.85} 92%{opacity:0.6} 100%{left:105%;opacity:0}
+  }
+</style>
+</head>
+<body>
+<div class="cursor" id="cursor"></div>
+<div class="scan-line"></div>
+<div class="state-flash" id="state-flash"></div>
+
+<div class="hud">
+  <div class="corner corner-tl" id="c-tl"></div>
+  <div class="corner corner-tr" id="c-tr"></div>
+  <div class="corner corner-bl" id="c-bl"></div>
+  <div class="corner corner-br" id="c-br"></div>
+
+  <canvas id="nova-canvas" width="500" height="500"></canvas>
+
+  <!-- Estado central visible -->
+  <div class="status-badge" id="status-badge" style="top:calc(50% + 140px)">
+    <div class="status-icon" id="status-icon">EN ESPERA</div>
+    <div class="status-sub" id="status-sub">SISTEMA NOMINAL</div>
+  </div>
+
+  <!-- TOP -->
+  <div class="panel panel-top">
+    <div class="nova-title">N.O.V.A</div>
+    <div class="nova-sub">Neural Operative Virtual Assistant · v1.0.0</div>
+  </div>
+
+  <!-- LEFT -->
+  <div class="panel panel-left">
+    <div class="p-label">Sistema</div>
+    <div class="p-value blink" id="clock">00:00:00</div>
+    <div style="font-size:8px;color:var(--cyan);opacity:0.4;margin-top:2px;" id="date-str">---</div>
+    <hr class="p-divider">
+    <div class="p-label">Rendimiento</div>
+    <div class="bar-wrap">
+      <div class="bar-name"><span>CPU</span><span id="cpu-v">--</span>%</div>
+      <div class="bar-track"><div class="bar-fill" id="cpu-b" style="width:0%"></div></div>
+    </div>
+    <div class="bar-wrap">
+      <div class="bar-name"><span>RAM</span><span id="ram-v">--</span>%</div>
+      <div class="bar-track"><div class="bar-fill" id="ram-b" style="width:0%"></div></div>
+    </div>
+    <div class="bar-wrap">
+      <div class="bar-name"><span>RED</span><span id="net-v">--</span>%</div>
+      <div class="bar-track"><div class="bar-fill" id="net-b" style="width:0%"></div></div>
+    </div>
+    <hr class="p-divider">
+    <div class="p-label">Módulos Activos</div>
+    <div class="modules-container" id="modules-container"></div>
+  </div>
+
+  <!-- RIGHT -->
+  <div class="panel panel-right">
+    <div class="p-label">Operador</div>
+    <div class="p-value">ALEX</div>
+    <div style="font-size:8px;color:var(--cyan);opacity:0.35;margin-top:2px;">NIVEL 5 · AUTORIZADO</div>
+    <hr class="p-divider">
+    <div class="p-label">Entorno</div>
+    <div class="dgrid">
+      <div class="ditem" style="text-align:right"><div class="dl">TEMP</div><div class="dv blink" id="temp-v">--°C</div></div>
+      <div class="ditem" style="text-align:right"><div class="dl">LUCES</div><div class="dv">ON</div></div>
+      <div class="ditem" style="text-align:right"><div class="dl">MÚSICA</div><div class="dv">▶</div></div>
+      <div class="ditem" style="text-align:right"><div class="dl">RED</div><div class="dv">OK</div></div>
+    </div>
+    <hr class="p-divider">
+    <div class="p-label">Última acción</div>
+    <div class="p-small" id="last-action" style="max-width:140px;text-align:right;">Sistema iniciado.<br>NOVA en línea.</div>
+    <hr class="p-divider">
+    <div class="p-label">Seguridad</div>
+    <div class="p-small" style="text-align:right;">NOVA SYSTEMS<br>AES-256 · <span class="blink" style="color:var(--cyan);">● ACTIVO</span></div>
+  </div>
+
+  <div class="state-controls">
+    <button class="state-btn active" onclick="window.setState('idle',this)">IDLE</button>
+    <button class="state-btn" onclick="window.setState('listening',this)">ESCUCHAR</button>
+    <button class="state-btn" onclick="window.setState('thinking',this)">PROCESAR</button>
+    <button class="state-btn" onclick="window.setState('talking',this)">HABLAR</button>
+  </div>
+</div>
+
+<script>
+// ── Cursor ──
+const cursor = document.getElementById('cursor');
+document.addEventListener('mousemove', e => { cursor.style.left=e.clientX+'px'; cursor.style.top=e.clientY+'px'; });
+
+// ── Reloj ──
+function updateClock(){
+  const n=new Date(),pad=x=>String(x).padStart(2,'0');
+  document.getElementById('clock').textContent=`${pad(n.getHours())}:${pad(n.getMinutes())}:${pad(n.getSeconds())}`;
+  const days=['DOMINGO','LUNES','MARTES','MIÉRCOLES','JUEVES','VIERNES','SÁBADO'];
+  const months=['ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT','NOV','DIC'];
+  document.getElementById('date-str').textContent=`${days[n.getDay()]} ${n.getDate()} ${months[n.getMonth()]} ${n.getFullYear()}`;
+}
+setInterval(updateClock,1000); updateClock();
+
+// ── Métricas ──
+function rnd(a,b){return Math.floor(Math.random()*(b-a)+a);}
+function updateMetrics(){
+  const cpu=rnd(12,50),ram=rnd(38,68),net=rnd(5,35);
+  ['cpu','ram','net'].forEach((k,i)=>{
+    document.getElementById(k+'-v').textContent=[cpu,ram,net][i];
+    document.getElementById(k+'-b').style.width=[cpu,ram,net][i]+'%';
+  });
+  document.getElementById('temp-v').textContent=rnd(18,25)+'°C';
+}
+setInterval(updateMetrics,2200); updateMetrics();
+
+// ── Estado global ──
+let currentState = 'idle';
+window.setState = setState; // expose globally
+let stateProgress = 0; // 0→1 transición
+let prevState = 'idle';
+
+const stateConfig = {
+  idle: {
+    label:'EN ESPERA', sub:'SISTEMA NOMINAL',
+    color:[168,85,247], accent:[168,85,247],
+    cornerColor:'#a855f7', flashColor:'transparent',
+    nodeActivity: 0.15, pulseSpeed: 1, waveIntensity: 0.18,
+    coreScale: 1.0, ringSpeed: 1.0
+  },
+  listening: {
+    label:'ESCUCHANDO', sub:'CAPTURANDO AUDIO · VOZ DETECTADA',
+    color:[34,211,238], accent:[34,211,238],
+    cornerColor:'#22d3ee', flashColor:'rgba(34,211,238,0.04)',
+    nodeActivity: 0.7, pulseSpeed: 2.5, waveIntensity: 0.85,
+    coreScale: 1.35, ringSpeed: 2.2
+  },
+  thinking: {
+    label:'PROCESANDO', sub:'ANALIZANDO DATOS · IA ACTIVA',
+    color:[251,146,60], accent:[251,146,60],
+    cornerColor:'#fb923c', flashColor:'rgba(251,146,60,0.04)',
+    nodeActivity: 1.0, pulseSpeed: 3.5, waveIntensity: 0.6,
+    coreScale: 1.2, ringSpeed: 4.0
+  },
+  talking: {
+    label:'RESPONDIENDO', sub:'TRANSMISIÓN DE VOZ · ACTIVA',
+    color:[232,121,249], accent:[232,121,249],
+    cornerColor:'#e879f9', flashColor:'rgba(232,121,249,0.05)',
+    nodeActivity: 0.55, pulseSpeed: 2.0, waveIntensity: 1.0,
+    coreScale: 1.25, ringSpeed: 1.8
+  }
+};
+
+function setState(s, btn) {
+  if(s === currentState) return;
+  prevState = currentState;
+  currentState = s;
+  stateProgress = 0;
+
+  const cfg = stateConfig[s];
+
+  // UI badge
+  document.getElementById('status-icon').textContent = cfg.label;
+  document.getElementById('status-icon').style.color = `rgb(${cfg.color.join(',')})`;
+  document.getElementById('status-icon').style.textShadow = `0 0 20px rgb(${cfg.color.join(',')})`;
+  document.getElementById('status-sub').textContent = cfg.sub;
+  document.getElementById('last-action').innerHTML = cfg.sub;
+
+  // Corners
+  ['c-tl','c-tr','c-bl','c-br'].forEach(id=>{
+    document.getElementById(id).style.borderColor = cfg.cornerColor;
+    document.getElementById(id).style.opacity = s==='idle'?'0.4':'0.9';
+    document.getElementById(id).style.boxShadow = s==='idle'?'none':`0 0 10px ${cfg.cornerColor}`;
+  });
+
+  // Flash borde
+  const flash = document.getElementById('state-flash');
+  flash.style.background = `radial-gradient(ellipse at center, transparent 60%, ${cfg.cornerColor}22 100%)`;
+  flash.style.opacity = '1';
+  setTimeout(()=>{ flash.style.opacity='0'; }, 600);
+
+  // Buttons
+  document.querySelectorAll('.state-btn').forEach(b=>b.classList.remove('active'));
+  if(btn) btn.classList.add('active');
+}
+
+// ════════════════════════════════════════════════
+// MÓDULOS
+// ════════════════════════════════════════════════
+const MODS=[
+  {id:'pc',   name:'SYS.CONTROL',sub:'KERNEL LINK', col:'#a855f7',colB:'#c084fc',icon:'PC'},
+  {id:'voice',name:'VOZ ES-ES',  sub:'AUDIO STREAM',col:'#22d3ee',colB:'#67e8f9',icon:'VOZ'},
+  {id:'home', name:'SMART HOME', sub:'IOT MESH',    col:'#e879f9',colB:'#f0abfc',icon:'IOT'},
+  {id:'music',name:'SONIC LAYER',sub:'SPOTIFY API', col:'#818cf8',colB:'#a5b4fc',icon:'SND'},
+];
+const modState={};
+const container=document.getElementById('modules-container');
+
+MODS.forEach(m=>{
+  modState[m.id]={waveData:Array.from({length:40},()=>Math.random()*.3+.1),radarAngle:Math.random()*Math.PI*2,tx:rnd(50,999),rx:rnd(50,999),blips:[]};
+  const card=document.createElement('div');
+  card.className='module-card';
+  card.style.setProperty('--col',m.col);
+  card.innerHTML=`
+    <div class="module-top">
+      <canvas id="hex-${m.id}" width="38" height="38" style="flex-shrink:0"></canvas>
+      <div class="module-info">
+        <div class="module-name">${m.name}</div>
+        <div class="module-sub" style="color:${m.col}">${m.sub}</div>
+      </div>
+      <canvas id="radar-${m.id}" width="32" height="32" style="flex-shrink:0"></canvas>
+    </div>
+    <canvas id="wave-${m.id}" width="170" height="24" style="width:100%"></canvas>
+    <div style="height:6px;position:relative;overflow:hidden;background:rgba(168,85,247,0.06);border-radius:1px;margin-top:5px;" id="flow-${m.id}"></div>
+    <div class="module-bottom">
+      <span class="module-counter">TX:<span id="tx-${m.id}">${modState[m.id].tx}</span></span>
+      <span class="module-counter" style="opacity:0.2">────</span>
+      <span class="module-counter">RX:<span id="rx-${m.id}">${modState[m.id].rx}</span></span>
+    </div>
+  `;
+  container.appendChild(card);
+  const flowEl=card.querySelector(`#flow-${m.id}`);
+  for(let i=0;i<5;i++){
+    const dot=document.createElement('div');
+    const w=6+Math.random()*12;
+    dot.style.cssText=`position:absolute;height:100%;width:${w}px;top:0;border-radius:2px;background:linear-gradient(90deg,transparent,${m.col}cc,transparent);animation:flowParticle ${1.2+Math.random()*2.5}s linear infinite;animation-delay:${Math.random()*3}s;`;
+    flowEl.appendChild(dot);
+  }
+});
+
+function animateMods(ts){
+  MODS.forEach((m,mi)=>{
+    const st=modState[m.id];
+    // Hexágono
+    const hc=document.getElementById('hex-'+m.id);
+    if(hc){
+      const hx=hc.getContext('2d'),hw=hc.width,hh=hc.height,hcx=hw/2,hcy=hh/2,hr=15;
+      hx.clearRect(0,0,hw,hh);
+      const pulse=Math.sin(ts*.002+mi*1.2)*.35+.65;
+      hx.beginPath();
+      for(let i=0;i<6;i++){const a=(Math.PI/3)*i-Math.PI/6;i===0?hx.moveTo(hcx+hr*Math.cos(a),hcy+hr*Math.sin(a)):hx.lineTo(hcx+hr*Math.cos(a),hcy+hr*Math.sin(a));}
+      hx.closePath();hx.strokeStyle=m.col;hx.lineWidth=1.5;hx.shadowColor=m.col;hx.shadowBlur=8;hx.stroke();hx.shadowBlur=0;
+      hx.save();hx.translate(hcx,hcy);hx.rotate(ts*.001*(mi%2===0?1:-1));hx.translate(-hcx,-hcy);
+      hx.beginPath();
+      for(let i=0;i<6;i++){const a=(Math.PI/3)*i;i===0?hx.moveTo(hcx+(hr*.55)*Math.cos(a),hcy+(hr*.55)*Math.sin(a)):hx.lineTo(hcx+(hr*.55)*Math.cos(a),hcy+(hr*.55)*Math.sin(a));}
+      hx.closePath();hx.strokeStyle=m.colB+'88';hx.lineWidth=.8;hx.stroke();hx.restore();
+      hx.fillStyle=m.colB;hx.font=`bold 7px 'Share Tech Mono'`;hx.textAlign='center';hx.textBaseline='middle';
+      hx.shadowColor=m.colB;hx.shadowBlur=6;hx.fillText(m.icon,hcx,hcy);hx.shadowBlur=0;
+      hx.beginPath();hx.arc(hcx,hcy,3*pulse,0,Math.PI*2);hx.fillStyle=m.colB+'cc';hx.fill();
+    }
+    // Radar
+    const rc=document.getElementById('radar-'+m.id);
+    if(rc){
+      const rx=rc.getContext('2d'),rw=rc.width,rh=rc.height,rcx=rw/2,rcy=rh/2,rr=13;
+      rx.clearRect(0,0,rw,rh);
+      st.radarAngle+=.045;
+      [rr,rr*.65,rr*.32].forEach(r=>{rx.beginPath();rx.arc(rcx,rcy,r,0,Math.PI*2);rx.strokeStyle=m.col+'44';rx.lineWidth=.5;rx.stroke();});
+      rx.strokeStyle=m.col+'22';rx.lineWidth=.5;
+      rx.beginPath();rx.moveTo(rcx-rr,rcy);rx.lineTo(rcx+rr,rcy);rx.stroke();
+      rx.beginPath();rx.moveTo(rcx,rcy-rr);rx.lineTo(rcx,rcy+rr);rx.stroke();
+      rx.beginPath();rx.moveTo(rcx,rcy);rx.arc(rcx,rcy,rr,st.radarAngle-.9,st.radarAngle);rx.closePath();
+      const sg=rx.createRadialGradient(rcx,rcy,0,rcx,rcy,rr);
+      sg.addColorStop(0,m.col+'88');sg.addColorStop(1,m.col+'00');rx.fillStyle=sg;rx.fill();
+      rx.beginPath();rx.moveTo(rcx,rcy);rx.lineTo(rcx+Math.cos(st.radarAngle)*rr,rcy+Math.sin(st.radarAngle)*rr);
+      rx.strokeStyle=m.colB;rx.lineWidth=1.5;rx.shadowColor=m.colB;rx.shadowBlur=5;rx.stroke();rx.shadowBlur=0;
+      if(Math.random()<.02)st.blips.push({a:Math.random()*Math.PI*2,r:rnd(3,rr-2),life:1.0});
+      st.blips=st.blips.filter(b=>b.life>.05);
+      st.blips.forEach(b=>{b.life-=.025;const bx=rcx+Math.cos(b.a)*b.r,by=rcy+Math.sin(b.a)*b.r;rx.beginPath();rx.arc(bx,by,1.5,0,Math.PI*2);rx.fillStyle=`rgba(255,255,255,${b.life})`;rx.shadowColor='#fff';rx.shadowBlur=4;rx.fill();rx.shadowBlur=0;});
+    }
+    // Onda
+    const wc=document.getElementById('wave-'+m.id);
+    if(wc){
+      const wx=wc.getContext('2d'),ww=wc.width,wh=wc.height;
+      wx.clearRect(0,0,ww,wh);
+      st.waveData.shift();
+      const cfg=stateConfig[currentState];
+      const intensity=cfg.waveIntensity*(m.id==='voice'?1.3:1);
+      st.waveData.push(Math.min(1,.08+Math.random()*intensity+Math.sin(ts*.004+mi)*.1));
+      const step=ww/(st.waveData.length-1);
+      wx.beginPath();
+      st.waveData.forEach((v,i)=>{const x=i*step,y=wh/2+(v-.5)*wh*.88;i===0?wx.moveTo(x,y):wx.lineTo(x,y);});
+      wx.strokeStyle=m.col;wx.lineWidth=1.3;wx.shadowColor=m.col;wx.shadowBlur=5;wx.stroke();wx.shadowBlur=0;
+      wx.lineTo(ww,wh);wx.lineTo(0,wh);wx.closePath();
+      const wg=wx.createLinearGradient(0,0,0,wh);wg.addColorStop(0,m.col+'28');wg.addColorStop(1,m.col+'00');
+      wx.fillStyle=wg;wx.fill();
+    }
+    if(Math.random()<.04){
+      st.tx=rnd(10,999);st.rx=rnd(10,999);
+      const tx=document.getElementById('tx-'+m.id),rx2=document.getElementById('rx-'+m.id);
+      if(tx)tx.textContent=st.tx;if(rx2)rx2.textContent=st.rx;
+    }
+  });
+  requestAnimationFrame(animateMods);
+}
+requestAnimationFrame(animateMods);
+
+// ════════════════════════════════════════════════════════════
+// CANVAS NEURAL CENTRAL — ANIMACIONES ESPECTACULARES
+// ════════════════════════════════════════════════════════════
+const canvas=document.getElementById('nova-canvas');
+const ctx=canvas.getContext('2d');
+const W=canvas.width,H=canvas.height,cx=W/2,cy=H/2;
+
+// Colores base
+const COLORS={
+  idle:    {r:168,g:85, b:247},
+  listening:{r:34, g:211,b:238},
+  thinking: {r:251,g:146,b:60},
+  talking:  {r:232,g:121,b:249}
+};
+const COLORS2={
+  idle:    {r:192,g:132,b:252},
+  listening:{r:103,g:232,b:249},
+  thinking: {r:253,g:186,b:116},
+  talking:  {r:240,g:171,b:252}
+};
+
+function lerpC(a,b,t){return{r:a.r+(b.r-a.r)*t,g:a.g+(b.g-a.g)*t,b:a.b+(b.b-a.b)*t};}
+function rgba(c,a){return`rgba(${Math.round(c.r)},${Math.round(c.g)},${Math.round(c.b)},${a})`;}
+
+// Nodos neurales
+const NODE_COUNT = 38;
+const nodes=[];
+nodes.push({x:cx,y:cy,vx:0,vy:0,r:8,isCenter:true,pulse:0});
+for(let i=0;i<NODE_COUNT;i++){
+  const angle=Math.random()*Math.PI*2, dist=55+Math.random()*175;
+  nodes.push({
+    x:cx+Math.cos(angle)*dist, y:cy+Math.sin(angle)*dist,
+    vx:(Math.random()-.5)*.4, vy:(Math.random()-.5)*.4,
+    r:1.5+Math.random()*3, isCenter:false,
+    pulse:Math.random()*Math.PI*2, colorT:Math.random(),
+    layer: Math.random() // 0=inner, 1=outer
+  });
+}
+
+// Sistema de partículas especial por estado
+const pulses=[];
+let lastPulse=0;
+const waves=[];
+let lastWave=0;
+
+// Partículas de ESCUCHA — lluvia entrante al centro
+const audioParticles=[];
+// Partículas de PENSAMIENTO — espiral orbital
+const thinkParticles=[];
+// Partículas de HABLA — explosión desde centro
+const talkParticles=[];
+
+// Inicializar partículas thinking (permanentes, activan con estado)
+for(let i=0;i<12;i++){
+  thinkParticles.push({
+    angle: (i/12)*Math.PI*2,
+    radius: 60+Math.random()*50,
+    speed: .012+Math.random()*.015,
+    size: 2+Math.random()*3,
+    trail: []
+  });
+}
+
+let t=0, globalTime=0;
+
+// Transición suave entre estados
+let displayState = Object.assign({}, stateConfig.idle);
+let targetStateKey = 'idle';
+
+function addPulse(){
+  const from=1+Math.floor(Math.random()*NODE_COUNT);
+  const to=Math.random()>.3?0:(1+Math.floor(Math.random()*NODE_COUNT));
+  if(from!==to) pulses.push({from,to,progress:0,speed:.005+Math.random()*.012,colorT:Math.random()});
+}
+
+function spawnAudioParticle(){
+  // Partícula que entra desde el borde hacia el centro
+  const angle=Math.random()*Math.PI*2;
+  const startR=210+Math.random()*30;
+  audioParticles.push({
+    x:cx+Math.cos(angle)*startR, y:cy+Math.sin(angle)*startR,
+    targetX:cx+(Math.random()-.5)*20, targetY:cy+(Math.random()-.5)*20,
+    life:1.0, speed:.02+Math.random()*.03, size:1.5+Math.random()*2.5
+  });
+}
+
+function spawnTalkParticle(){
+  const angle=Math.random()*Math.PI*2;
+  const speed=1.5+Math.random()*3;
+  talkParticles.push({
+    x:cx, y:cy,
+    vx:Math.cos(angle)*speed, vy:Math.sin(angle)*speed,
+    life:1.0, decay:.012+Math.random()*.02,
+    size:1.5+Math.random()*3,
+    colorT:Math.random()
+  });
+}
+
+function drawFrame(ts){
+  ctx.clearRect(0,0,W,H);
+  t+=.016; globalTime=ts;
+
+  const cfg=stateConfig[currentState];
+  const col=COLORS[currentState];
+  const col2=COLORS2[currentState];
+
+  // Fondo radial
+  const bg=ctx.createRadialGradient(cx,cy,0,cx,cy,230);
+  bg.addColorStop(0,rgba(col,.12));
+  bg.addColorStop(.5,rgba(col,.04));
+  bg.addColorStop(1,'rgba(4,0,15,0)');
+  ctx.fillStyle=bg; ctx.fillRect(0,0,W,H);
+
+  // ════════════════════════════════
+  // IDLE — red neural calma
+  // ════════════════════════════════
+  if(currentState==='idle'){
+    // Nada especial, solo red base
+  }
+
+  // ════════════════════════════════
+  // ESCUCHANDO — partículas entrantes + anillos sónicos
+  // ════════════════════════════════
+  if(currentState==='listening'){
+    // Spawning de partículas de audio
+    if(Math.random()<.35) spawnAudioParticle();
+
+    // Anillos sónicos expansivos que ENTRAN (contraen) al centro
+    if(ts-lastWave>300){
+      waves.push({r:220,alpha:.7,type:'inward'});
+      lastWave=ts;
+    }
+
+    // Dibujar anillos que contraen
+    for(let i=waves.length-1;i>=0;i--){
+      const w=waves[i];
+      w.r-=2.5; w.alpha*=.96;
+      if(w.r<5||w.alpha<.02){waves.splice(i,1);continue;}
+      const fadeAlpha=(1-w.r/220)*w.alpha;
+      ctx.beginPath(); ctx.arc(cx,cy,w.r,0,Math.PI*2);
+      ctx.strokeStyle=rgba(col,fadeAlpha*.6); ctx.lineWidth=1.5+fadeAlpha*2; ctx.stroke();
+    }
+
+    // Dibujar partículas de audio entrantes
+    for(let i=audioParticles.length-1;i>=0;i--){
+      const p=audioParticles[i];
+      const dx=p.targetX-p.x, dy=p.targetY-p.y;
+      const dist=Math.hypot(dx,dy);
+      p.x+=dx*p.speed; p.y+=dy*p.speed;
+      p.life-=.015;
+      if(p.life<=0||dist<3){audioParticles.splice(i,1);continue;}
+      const alpha=p.life*.9;
+      const g=ctx.createRadialGradient(p.x,p.y,0,p.x,p.y,p.size*2);
+      g.addColorStop(0,rgba(col,alpha)); g.addColorStop(1,rgba(col,0));
+      ctx.fillStyle=g; ctx.beginPath(); ctx.arc(p.x,p.y,p.size*2,0,Math.PI*2); ctx.fill();
+      // Estela
+      ctx.beginPath(); ctx.moveTo(p.x,p.y); ctx.lineTo(p.x-dx*.15,p.y-dy*.15);
+      ctx.strokeStyle=rgba(col,alpha*.5); ctx.lineWidth=p.size*.5; ctx.stroke();
+    }
+
+    // Onda de sonido estilo ecualizador alrededor del centro
+    const bars=64;
+    for(let i=0;i<bars;i++){
+      const angle=(i/bars)*Math.PI*2;
+      const noiseVal=Math.sin(t*8+i*.4)*Math.sin(t*5-i*.3)*Math.sin(t*3+i*.7);
+      const barH=15+Math.abs(noiseVal)*55;
+      const innerR=55, outerR=innerR+barH;
+      ctx.beginPath();
+      ctx.moveTo(cx+Math.cos(angle)*innerR, cy+Math.sin(angle)*innerR);
+      ctx.lineTo(cx+Math.cos(angle)*outerR, cy+Math.sin(angle)*outerR);
+      const alpha=.3+Math.abs(noiseVal)*.7;
+      ctx.strokeStyle=rgba(col,alpha); ctx.lineWidth=2.5;
+      ctx.shadowColor=rgba(col,alpha); ctx.shadowBlur=6;
+      ctx.stroke(); ctx.shadowBlur=0;
+    }
+  }
+
+  // ════════════════════════════════
+  // PROCESANDO — espiral caótica + matriz de datos
+  // ════════════════════════════════
+  if(currentState==='thinking'){
+    // Espiral de partículas orbitales acelerando
+    thinkParticles.forEach((p,i)=>{
+      p.angle += p.speed * 3.5; // muy rápido
+      // Radio oscila creando efecto caótico
+      const radiusNoise=Math.sin(t*2+i)*.3+1;
+      const r=p.radius*radiusNoise;
+      const x=cx+Math.cos(p.angle)*r, y=cy+Math.sin(p.angle)*r;
+
+      // Trail
+      p.trail.push({x,y});
+      if(p.trail.length>18)p.trail.shift();
+
+      // Dibujar trail
+      p.trail.forEach((pt,ti)=>{
+        const alpha=(ti/p.trail.length)*.7;
+        const size=p.size*(ti/p.trail.length);
+        ctx.beginPath(); ctx.arc(pt.x,pt.y,size,0,Math.PI*2);
+        ctx.fillStyle=rgba(col,alpha); ctx.fill();
+      });
+
+      // Cabeza
+      const g=ctx.createRadialGradient(x,y,0,x,y,p.size*2);
+      g.addColorStop(0,rgba(col2,1)); g.addColorStop(1,rgba(col,0));
+      ctx.fillStyle=g; ctx.beginPath(); ctx.arc(x,y,p.size*2,0,Math.PI*2); ctx.fill();
+    });
+
+    // Matriz de datos binarios cayendo (estilo Matrix)
+    ctx.font='8px Share Tech Mono';
+    ctx.textAlign='center';
+    for(let i=0;i<20;i++){
+      const x=cx+(i-10)*20+Math.sin(t+i)*.5;
+      const y=cy-140+(((t*60+i*37)%280));
+      const alpha=Math.sin(((t*60+i*37)%280)/280*Math.PI)*.6;
+      ctx.fillStyle=rgba(col,alpha);
+      ctx.shadowColor=rgba(col,.5); ctx.shadowBlur=4;
+      ctx.fillText(Math.random()<.05?String.fromCharCode(48+Math.floor(Math.random()*2)):'1', x, y);
+      ctx.shadowBlur=0;
+    }
+
+    // Arcos múltiples girando a distintas velocidades
+    [45,65,85,105].forEach((r,i)=>{
+      const speed=(i+1)*(i%2===0?1:-1)*2;
+      const start=t*speed, end=start+Math.PI*(0.4+i*.15);
+      ctx.beginPath(); ctx.arc(cx,cy,r,start,end);
+      ctx.strokeStyle=rgba(i%2===0?col:col2,0.6-i*0.1);
+      ctx.lineWidth=2; ctx.shadowColor=rgba(col,.5); ctx.shadowBlur=8; ctx.stroke(); ctx.shadowBlur=0;
+    });
+
+    // Pulsos muy frecuentes
+    if(ts-lastPulse>80){addPulse();addPulse();lastPulse=ts;}
+  }
+
+  // ════════════════════════════════
+  // HABLANDO — explosión sónica + ondas expansivas + boca
+  // ════════════════════════════════
+  if(currentState==='talking'){
+    // Spawn partículas de voz
+    if(Math.random()<.4) spawnTalkParticle();
+    if(Math.random()<.2) spawnTalkParticle();
+
+    // Ondas sónicas expansivas
+    if(ts-lastWave>250){
+      waves.push({r:8,alpha:.9,type:'outward'});
+      lastWave=ts;
+    }
+    for(let i=waves.length-1;i>=0;i--){
+      const w=waves[i]; w.r+=2.8; w.alpha*=.94;
+      if(w.r>230||w.alpha<.01){waves.splice(i,1);continue;}
+      ctx.beginPath(); ctx.arc(cx,cy,w.r,0,Math.PI*2);
+      const alpha=(1-w.r/230)*w.alpha;
+      ctx.strokeStyle=rgba(col,alpha*.7); ctx.lineWidth=2+alpha*3; ctx.stroke();
+    }
+
+    // Partículas de voz
+    for(let i=talkParticles.length-1;i>=0;i--){
+      const p=talkParticles[i];
+      p.x+=p.vx; p.y+=p.vy;
+      p.vx*=.98; p.vy*=.98;
+      p.life-=p.decay;
+      if(p.life<=0){talkParticles.splice(i,1);continue;}
+      const c=lerpC(col,col2,p.colorT);
+      const g=ctx.createRadialGradient(p.x,p.y,0,p.x,p.y,p.size*2);
+      g.addColorStop(0,rgba(c,p.life)); g.addColorStop(1,rgba(c,0));
+      ctx.fillStyle=g; ctx.beginPath(); ctx.arc(p.x,p.y,p.size*2,0,Math.PI*2); ctx.fill();
+    }
+
+    // Ecualizador de VOZ expandiéndose
+    const bars=80;
+    for(let i=0;i<bars;i++){
+      const angle=(i/bars)*Math.PI*2;
+      const n1=Math.sin(t*12+i*.25);
+      const n2=Math.sin(t*7-i*.4);
+      const n3=Math.sin(t*4+i*.15);
+      const noiseVal=(n1+n2+n3)/3;
+      const barH=20+Math.abs(noiseVal)*70;
+      const innerR=60, outerR=innerR+barH;
+      const alpha=.25+Math.abs(noiseVal)*.75;
+      ctx.beginPath();
+      ctx.moveTo(cx+Math.cos(angle)*innerR, cy+Math.sin(angle)*innerR);
+      ctx.lineTo(cx+Math.cos(angle)*outerR, cy+Math.sin(angle)*outerR);
+      ctx.strokeStyle=rgba(lerpC(col,col2,i/bars),alpha);
+      ctx.lineWidth=2; ctx.shadowColor=rgba(col,alpha*.5); ctx.shadowBlur=5;
+      ctx.stroke(); ctx.shadowBlur=0;
+    }
+  }
+
+  // ════════════════════════════════
+  // RED NEURAL — base para todos los estados
+  // ════════════════════════════════
+  const activityMult=cfg.nodeActivity;
+
+  // Mover nodos
+  nodes.forEach(n=>{
+    if(n.isCenter){n.pulse+=.04*cfg.pulseSpeed;return;}
+    n.x+=n.vx*(currentState==='thinking'?1.8:1);
+    n.y+=n.vy*(currentState==='thinking'?1.8:1);
+    const dx=cx-n.x,dy=cy-n.y,dist=Math.hypot(dx,dy);
+    if(dist>185){n.vx+=dx*.0003;n.vy+=dy*.0003;}
+    if(dist<50) {n.vx-=dx*.0004;n.vy-=dy*.0004;}
+    n.vx*=.998; n.vy*=.998; n.pulse+=.03;
+  });
+
+  // Conexiones
+  for(let i=1;i<nodes.length;i++){
+    const ni=nodes[i];
+    const dc=Math.hypot(ni.x-cx,ni.y-cy);
+    if(dc<170){
+      const alpha=(1-dc/170)*.3*activityMult;
+      const grad=ctx.createLinearGradient(ni.x,ni.y,cx,cy);
+      grad.addColorStop(0,rgba(lerpC(col,col2,ni.colorT),alpha));
+      grad.addColorStop(1,rgba(col,alpha*1.8));
+      ctx.beginPath();ctx.moveTo(ni.x,ni.y);ctx.lineTo(cx,cy);
+      ctx.strokeStyle=grad;ctx.lineWidth=.9;ctx.stroke();
+    }
+    for(let j=i+1;j<nodes.length;j++){
+      const nj=nodes[j],d=Math.hypot(ni.x-nj.x,ni.y-nj.y);
+      if(d<80){
+        ctx.beginPath();ctx.moveTo(ni.x,ni.y);ctx.lineTo(nj.x,nj.y);
+        ctx.strokeStyle=rgba(lerpC(col2,col,(ni.colorT+nj.colorT)/2),(1-d/80)*.18*activityMult);
+        ctx.lineWidth=.6;ctx.stroke();
+      }
+    }
+  }
+
+  // Pulsos de la red
+  if(currentState!=='thinking'){
+    const interval=currentState==='idle'?500:currentState==='listening'?250:300;
+    if(ts-lastPulse>interval){addPulse();lastPulse=ts;}
+  }
+  for(let i=pulses.length-1;i>=0;i--){
+    const p=pulses[i];
+    p.progress+=p.speed*(currentState==='thinking'?2:1);
+    if(p.progress>=1){pulses.splice(i,1);continue;}
+    const fn=nodes[p.from],tn=nodes[p.to];
+    if(!fn||!tn){pulses.splice(i,1);continue;}
+    const px=fn.x+(tn.x-fn.x)*p.progress,py=fn.y+(tn.y-fn.y)*p.progress;
+    const fade=Math.sin(p.progress*Math.PI);
+    const g=ctx.createRadialGradient(px,py,0,px,py,6);
+    const pc=lerpC(col,col2,p.colorT);
+    g.addColorStop(0,rgba(pc,fade*.95)); g.addColorStop(1,rgba(pc,0));
+    ctx.fillStyle=g;ctx.beginPath();ctx.arc(px,py,6,0,Math.PI*2);ctx.fill();
+  }
+
+  // Nodos
+  nodes.forEach(n=>{
+    if(n.isCenter)return;
+    const pulse=Math.sin(n.pulse)*.4+.6;
+    const nc=lerpC(col,col2,n.colorT);
+    const g=ctx.createRadialGradient(n.x,n.y,0,n.x,n.y,n.r*3);
+    g.addColorStop(0,rgba(nc,pulse*activityMult));
+    g.addColorStop(1,rgba(nc,0));
+    ctx.fillStyle=g;ctx.beginPath();ctx.arc(n.x,n.y,n.r*3,0,Math.PI*2);ctx.fill();
+    ctx.beginPath();ctx.arc(n.x,n.y,n.r*.8,0,Math.PI*2);
+    ctx.fillStyle=rgba(nc,pulse*Math.min(activityMult*1.5,1));ctx.fill();
+  });
+
+  // ════════════════════════════════
+  // NÚCLEO CENTRAL — cambia dramáticamente por estado
+  // ════════════════════════════════
+  const cp=Math.sin(t*cfg.pulseSpeed*2)*.35+.65;
+  const cs=cfg.coreScale;
+
+  // Anillos orbitales con velocidad según estado
+  const ringConfigs=[
+    {r:24, speed:cfg.ringSpeed, dir:1,  width:2.0},
+    {r:38, speed:cfg.ringSpeed*.6, dir:-1, width:1.2},
+    {r:52, speed:cfg.ringSpeed*.4, dir:1,  width:1.0},
+  ];
+  ringConfigs.forEach((rc2,ri)=>{
+    const r=rc2.r*cs;
+    ctx.beginPath(); ctx.arc(cx,cy,r,0,Math.PI*2);
+    ctx.strokeStyle=rgba(ri===1?col2:col,(0.55-ri*.1)*cp);
+    ctx.lineWidth=rc2.width; ctx.shadowColor=rgba(col,.4); ctx.shadowBlur=6; ctx.stroke(); ctx.shadowBlur=0;
+  });
+
+  // Arcos giratorios — cantidad y velocidad varía con estado
+  const arcCount=currentState==='thinking'?6:currentState==='idle'?2:4;
+  for(let i=0;i<arcCount;i++){
+    const speed=cfg.ringSpeed*(i%2===0?1:-0.7);
+    const offset=(i/arcCount)*Math.PI*2;
+    const arcLen=Math.PI*(currentState==='thinking'?.4:.7);
+    const start=t*speed+offset, end=start+arcLen;
+    const arcR=(26+i*6)*cs;
+    ctx.beginPath(); ctx.arc(cx,cy,arcR,start,end);
+    const arcCol=i%2===0?col:col2;
+    ctx.strokeStyle=rgba(arcCol,.7-(i*.08));
+    ctx.lineWidth=2.5-(i*.3); ctx.shadowColor=rgba(arcCol,.6); ctx.shadowBlur=10; ctx.stroke(); ctx.shadowBlur=0;
+  }
+
+  // Núcleo interior — pulsa con intensidad según estado
+  const coreSize=14*cs*(currentState==='idle'?.9:currentState==='thinking'?1+Math.sin(t*8)*.15:1);
+  const cg=ctx.createRadialGradient(cx,cy,0,cx,cy,coreSize*1.8);
+  cg.addColorStop(0,`rgba(255,245,255,${cp})`);
+  cg.addColorStop(.3,rgba(col2,.9*cp));
+  cg.addColorStop(.7,rgba(col,.5*cp));
+  cg.addColorStop(1,'rgba(0,0,0,0)');
+  ctx.fillStyle=cg; ctx.beginPath(); ctx.arc(cx,cy,coreSize*1.8,0,Math.PI*2); ctx.fill();
+
+  // Brillo extra en estados activos
+  if(currentState!=='idle'){
+    const glow=ctx.createRadialGradient(cx,cy,0,cx,cy,80*cs);
+    glow.addColorStop(0,rgba(col,.08*cp));
+    glow.addColorStop(.5,rgba(col,.03));
+    glow.addColorStop(1,'rgba(0,0,0,0)');
+    ctx.fillStyle=glow; ctx.beginPath(); ctx.arc(cx,cy,80*cs,0,Math.PI*2); ctx.fill();
+  }
+
+  // Partículas orbitales (permanentes)
+  const orbitCount=currentState==='thinking'?4:2;
+  for(let i=0;i<orbitCount;i++){
+    const speed=cfg.ringSpeed*(i===0?1.2:-.8)*(i<2?1:1.5);
+    const orbitR=(38+i*12)*cs;
+    const a=t*speed+i*Math.PI/orbitCount*2;
+    const px=cx+Math.cos(a)*orbitR, py=cy+Math.sin(a)*orbitR;
+    const pc=i%2===0?col:col2;
+    const pg=ctx.createRadialGradient(px,py,0,px,py,5);
+    pg.addColorStop(0,rgba(pc,.95)); pg.addColorStop(1,rgba(pc,0));
+    ctx.fillStyle=pg; ctx.beginPath(); ctx.arc(px,py,5,0,Math.PI*2); ctx.fill();
+    // Estela orbital
+    for(let s=1;s<=8;s++){
+      const sa=a-s*.05*speed;
+      const sx=cx+Math.cos(sa)*orbitR, sy=cy+Math.sin(sa)*orbitR;
+      ctx.beginPath(); ctx.arc(sx,sy,3*(1-s/8),0,Math.PI*2);
+      ctx.fillStyle=rgba(pc,(1-s/8)*.4); ctx.fill();
+    }
+  }
+
+  requestAnimationFrame(drawFrame);
+}
+requestAnimationFrame(drawFrame);
+</script>
+</body>
+</html>

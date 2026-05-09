@@ -1,0 +1,141 @@
+================================================================================
+  NOVA — BOT DE TELEGRAM: GUÍA COMPLETA DE COMANDOS Y CAPACIDADES
+  Archivo generado: 2026-04-26
+================================================================================
+
+El bot de Telegram de NOVA corre en Oracle Cloud (servicio nova-telegram).
+Solo responde al ID de Telegram autorizado (el de Alex).
+
+────────────────────────────────────────────────────────────────────────────────
+COMANDOS EXPLÍCITOS
+────────────────────────────────────────────────────────────────────────────────
+
+/start
+  Saludo inicial. Confirma que el bot está online.
+  Respuesta: "NOVA online. ¿Qué necesitas, Alex?"
+
+/reset
+  Borra el historial de conversación del bot (historial_telegram.json en Oracle).
+  Útil si el contexto se ha ensuciado o quieres empezar desde cero.
+
+/status
+  Muestra qué brain está activo en este momento y cuántos mensajes lleva
+  el historial en memoria.
+  Ejemplo de respuesta: "Brain activo: Groq (openai/gpt-oss-120b) | Mensajes: 14"
+
+/aprender
+  Ordena a NOVA que lea todo su propio código fuente en B:\NOVA (PC local,
+  acceso via Tailscale) y genere un resumen de autoconocimiento.
+  Este resumen se incrusta en el system prompt de futuras conversaciones.
+  Requiere que el PC local esté encendido y accesible por Tailscale.
+
+/reporte
+  Genera y envía el reporte diario manualmente (el mismo que se envía
+  automáticamente cada día a las 07:00 hora Madrid).
+  Incluye: noticias de Zaragoza, resumen del día, etc.
+
+/noticia <número>
+  Lee y resume una noticia concreta del caché de noticias.
+  Ejemplo: /noticia 3
+  Si no hay caché cargado, sugiere esperar al reporte automático o usar /reporte.
+  El resumen lo genera Groq a partir del artículo completo (hasta 4000 chars).
+
+/deploy
+  Muestra botones de confirmación para sincronizar el código del PC local → Oracle.
+  Al confirmar: copia los archivos via SCP + SSH y reinicia nova-almacen y
+  nova-telegram en Oracle.
+  Requiere que el PC local esté encendido (acceso via Tailscale, puerto 5000).
+
+/diagnostico
+  Hace un diagnóstico REAL y completo de ambas máquinas:
+    - Estado de los servicios nova-almacen y nova-telegram en Oracle (systemctl)
+    - Últimas 30 líneas de logs de cada servicio (journalctl)
+    - Uso de disco en Oracle (df -h)
+    - Uso de RAM en Oracle (free -h)
+    - Uptime de Oracle
+    - Procesos Python corriendo en Oracle (pgrep)
+    - Estado del PC local via Tailscale: accesible, nova.py corriendo, Ollama online
+  Todo esto se pasa a Groq (temperatura 0.1) para un análisis estructurado.
+  La respuesta incluye dos botones:
+    [🚀 Deploy ahora]  → lanza el deploy automáticamente
+    [📋 Ver logs raw]  → muestra todos los logs en bruto en bloques de código
+
+────────────────────────────────────────────────────────────────────────────────
+CONVERSACIÓN LIBRE (sin comando)
+────────────────────────────────────────────────────────────────────────────────
+
+Cualquier mensaje que no sea un comando se procesa como conversación con NOVA.
+
+Brain routing (orden de prioridad):
+  1. Groq API (modelo openai/gpt-oss-120b o llama-3.3-70b-versatile de fallback)
+     → Siempre se intenta primero. Timeout: 25s por intento, 3 intentos.
+  2. Si Groq falla 3 veces → RuntimeError (el bot responde con el error).
+
+Lo que NOVA inyecta automáticamente en cada mensaje antes de enviarlo al LLM:
+  - Hora y fecha actual (Madrid)
+  - Memoria persistente (hechos, preferencias, perfil de Alex)
+  - Autoconocimiento propio (si /aprender se ha ejecutado antes)
+  - Contexto cruzado: últimas interacciones por voz (historial_voz.json)
+  - Información de internet si la pregunta la requiere (módulo internet.py)
+  - Código fuente relevante de B:\NOVA si la pregunta lo requiere (módulo explorador.py)
+
+Historial: mantiene los últimos 20 mensajes de contexto. Se guarda en Oracle
+(historial_telegram.json) y se recupera al reiniciar el bot.
+
+────────────────────────────────────────────────────────────────────────────────
+RESPUESTAS POR NOTA DE VOZ
+────────────────────────────────────────────────────────────────────────────────
+
+Si en cualquier mensaje incluyes frases como:
+  "nota de voz", "en voz", "por voz", "en audio",
+  "mándamelo en voz", "respóndeme en voz", "contéstame en voz"...
+
+NOVA generará la respuesta normalmente y luego la convertirá a audio y te la
+enviará como nota de voz en Telegram.
+Si la conversión de audio falla, igualmente envía la respuesta en texto.
+
+────────────────────────────────────────────────────────────────────────────────
+ACCIONES ESPECIALES (módulo acciones.py)
+────────────────────────────────────────────────────────────────────────────────
+
+Antes de procesar el mensaje con el LLM, NOVA comprueba si el texto pide
+una acción especial definida en acciones.py (maybe_handle_action_request).
+Si la acción se resuelve ahí, no se consulta al LLM.
+(El detalle de qué acciones están definidas depende del contenido de acciones.py.)
+
+────────────────────────────────────────────────────────────────────────────────
+REPORTE DIARIO AUTOMÁTICO
+────────────────────────────────────────────────────────────────────────────────
+
+Cada día a las 07:00 hora Madrid el bot envía automáticamente el reporte diario
+(mismo contenido que /reporte) sin necesidad de ningún comando.
+Requiere que python-telegram-bot esté instalado con JobQueue (APScheduler).
+
+────────────────────────────────────────────────────────────────────────────────
+ACCESO Y SEGURIDAD
+────────────────────────────────────────────────────────────────────────────────
+
+- Solo responde al TELEGRAM_ALLOWED_ID configurado en config.py.
+- Los botones de inline keyboard también validan el ID antes de ejecutar nada.
+- La ejecución de comandos en Oracle usa una whitelist estricta en almacen.py;
+  no es posible ejecutar comandos arbitrarios desde el bot.
+- El deploy requiere que el PC local esté encendido y el endpoint /deploy de
+  servidor.py esté activo (puerto 5000).
+
+────────────────────────────────────────────────────────────────────────────────
+RESUMEN RÁPIDO DE COMANDOS
+────────────────────────────────────────────────────────────────────────────────
+
+  /start        → Bot online
+  /reset        → Borra historial de conversación
+  /status       → Brain activo + nº de mensajes en historial
+  /aprender     → NOVA lee su propio código y genera autoconocimiento
+  /reporte      → Reporte diario manual (noticias Zaragoza, etc.)
+  /noticia N    → Resume la noticia número N del caché
+  /deploy       → Sincroniza PC local → Oracle (con confirmación)
+  /diagnostico  → Diagnóstico real Oracle + PC local + análisis LLM
+
+  Texto libre   → Conversación con NOVA (Groq)
+  "...en voz"   → NOVA responde con nota de voz de audio
+
+================================================================================

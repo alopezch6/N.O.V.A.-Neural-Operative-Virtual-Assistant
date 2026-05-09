@@ -1,0 +1,32 @@
+{
+  "name": "nova-boot-sequence",
+  "version": "2.0.0",
+  "description": "NOVA OS Boot Sequence — Cinematica 21:9",
+  "scripts": {
+    "start": "remotion studio",
+    "render": "remotion render BootSequence --output out/nova-boot.mp4 --codec h264 --crf 16"
+  },
+  "dependencies": {
+    "@react-three/drei": "^10.7.7",
+    "@react-three/fiber": "^8.18.0",
+    "@react-three/postprocessing": "^2.19.1",
+    "@remotion/cli": "^4.0.0",
+    "@remotion/google-fonts": "^4.0.0",
+    "@remotion/tailwind": "^4.0.0",
+    "@remotion/three": "^4.0.452",
+    "@types/three": "^0.184.0",
+    "autoprefixer": "^10.4.17",
+    "lucide-react": "^0.400.0",
+    "postcss": "^8.4.33",
+    "postprocessing": "^6.39.1",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "remotion": "^4.0.0",
+    "tailwindcss": "^3.4.1",
+    "three": "^0.184.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.0",
+    "typescript": "^5.3.0"
+  }
+}

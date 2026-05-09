@@ -1,0 +1,20 @@
+{
+  "que ponga alexa volume y lo pongas al máximo. todo lo que ponga alexa volume, subelo al máximo.": {
+    "code": "import ctypes; ctypes.windll.user32.SendMessageW(0xFFFF, 0x0319, 0x8008, 0x0); ctypes.windll.user32.SendMessageW(0xFFFF, 0x0319, 0x8008, 0x0)",
+    "description": "Establece el volumen al máximo",
+    "created": "2026-04-23T22:30:35",
+    "uses": 3
+  },
+  "lo que quiero es iniciarte con el volumen más alto.": {
+    "code": "import ctypes; ctypes.windll.user32.SendMessageW(0xFFFF, 0x0319, 0x0000, 0x0000)",
+    "description": "Establece el volumen al máximo",
+    "created": "2026-04-23T22:46:52",
+    "uses": 2
+  },
+  "cuando te inician el volumen está bajo, lo demás está bien.": {
+    "code": "import ctypes; ctypes.windll.user32.SendMessageW(0xFFFF, 0x0319, 0x0000, 0x0000)",
+    "description": "Establece el volumen al máximo al iniciar",
+    "created": "2026-04-23T22:50:58",
+    "uses": 1
+  }
+}

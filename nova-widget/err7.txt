@@ -1,0 +1,22 @@
+node:internal/modules/cjs/loader:1235
+  throw err;
+  ^
+
+Error: Cannot find module 'electron/main'
+Require stack:
+- B:\NOVA\nova-widget\main.js
+    at Module._resolveFilename (node:internal/modules/cjs/loader:1232:15)
+    at Module._load (node:internal/modules/cjs/loader:1058:27)
+    at c._load (node:electron/js2c/node_init:2:16955)
+    at Module.require (node:internal/modules/cjs/loader:1318:19)
+    at require (node:internal/modules/helpers:179:18)
+    at Object.<anonymous> (B:\NOVA\nova-widget\main.js:18:5)
+    at Module._compile (node:internal/modules/cjs/loader:1484:14)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1564:10)
+    at Module.load (node:internal/modules/cjs/loader:1295:32)
+    at Module._load (node:internal/modules/cjs/loader:1111:12) {
+  code: 'MODULE_NOT_FOUND',
+  requireStack: [ 'B:\\NOVA\\nova-widget\\main.js' ]
+}
+
+Node.js v20.18.3

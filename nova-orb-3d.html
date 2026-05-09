@@ -1,0 +1,1254 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>N.O.V.A — 3D Core v2</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap');
+
+:root {
+  --v:#a855f7; --vb:#c084fc; --c:#22d3ee; --pk:#e879f9;
+  --g:#4ade80; --or:#fb923c; --bg:#04000f;
+  --mode-col: #a855f7;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+html { background:transparent; }
+body { background:transparent; overflow:hidden; font-family:'Share Tech Mono',monospace; }
+#c { background:transparent; }
+
+/* ── Wallpaper background light ────────── */
+#bg-light {
+  position:fixed; inset:0; z-index:0; pointer-events:none;
+  background: radial-gradient(ellipse 65% 55% at 50% 50%, rgba(168,85,247,0.13) 0%, transparent 70%);
+  transition: background 1.2s ease;
+}
+#bg-light::after {
+  content:'';position:absolute;inset:0;
+  background:radial-gradient(ellipse 100% 40% at 50% 100%, rgba(168,85,247,0.04) 0%, transparent 60%);
+  pointer-events:none;
+}
+
+#c { display:block; width:100vw; height:100vh; position:relative; z-index:1; }
+
+/* ── Scanlines ─────────────────────────── */
+body::before { content:''; position:fixed; inset:0; background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(168,85,247,0.007) 2px,rgba(168,85,247,0.007) 4px); pointer-events:none; z-index:300; }
+.scan { position:fixed;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,var(--v),var(--c),transparent);opacity:0;animation:scan 10s linear infinite;pointer-events:none;z-index:301; }
+@keyframes scan{0%{top:0;opacity:.3}100%{top:100%;opacity:0}}
+
+/* ── HUD Overlay ────────────────────────── */
+.overlay { position:fixed; inset:0; pointer-events:none; z-index:10; }
+
+.corner { position:absolute; width:40px; height:40px; border-style:solid; border-color:var(--mode-col); opacity:.45; transition:all .6s ease; }
+.corner-tl { top:20px; left:20px; border-width:2px 0 0 2px; }
+.corner-tr { top:20px; right:20px; border-width:2px 2px 0 0; }
+.corner-bl { bottom:20px; left:20px; border-width:0 0 2px 2px; }
+.corner-br { bottom:20px; right:20px; border-width:0 2px 2px 0; }
+
+.nova-title {
+  position:absolute; top:22px; left:50%; transform:translateX(-50%);
+  font-family:'Orbitron',sans-serif; font-size:22px; font-weight:900; letter-spacing:12px;
+  background:linear-gradient(90deg,var(--v),var(--c),var(--pk),var(--v));
+  background-size:200%;
+  -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text;
+  filter:drop-shadow(0 0 14px rgba(168,85,247,.9));
+  animation:shimmer 5s linear infinite, flicker 14s infinite;
+  white-space:nowrap;
+}
+@keyframes shimmer{0%{background-position:0%}100%{background-position:200%}}
+@keyframes flicker{0%,93%,100%{opacity:1}94%{opacity:.8}96%{opacity:1}97.5%{opacity:.4}99%{opacity:1}}
+
+.nova-sub { position:absolute; top:56px; left:50%; transform:translateX(-50%); font-size:7px; letter-spacing:5px; color:var(--c); opacity:.4; white-space:nowrap; }
+
+/* Mode badge */
+.mode-badge {
+  position:absolute; top:80px; left:50%; transform:translateX(-50%);
+  font-family:'Orbitron',sans-serif; font-size:8px; letter-spacing:4px;
+  padding:3px 14px; border:1px solid var(--mode-col); color:var(--mode-col);
+  opacity:.6; white-space:nowrap; transition:all .5s;
+  text-shadow:0 0 10px var(--mode-col);
+  box-shadow:0 0 8px rgba(168,85,247,.15) inset;
+}
+
+.status-wrap { position:absolute; bottom:88px; left:50%; transform:translateX(-50%); text-align:center; pointer-events:none; }
+.status-label { font-family:'Orbitron',sans-serif; font-size:11px; letter-spacing:5px; font-weight:900; color:var(--vb); text-shadow:0 0 20px var(--v); transition:color .5s,text-shadow .5s; }
+.status-sub { font-size:7px; letter-spacing:3px; color:var(--c); opacity:.45; margin-top:4px; }
+
+/* Info panels */
+.info-left, .info-right { position:absolute; top:50%; transform:translateY(-50%); font-size:9px; line-height:2.3; }
+.info-left { left:24px; }
+.info-right { right:24px; text-align:right; }
+.i-lbl { font-size:7px; letter-spacing:2px; color:var(--c); opacity:.45; }
+.i-val { color:var(--vb); font-family:'Orbitron',sans-serif; font-size:11px; }
+hr.divider { border:none; border-top:1px solid rgba(168,85,247,.18); margin:8px 0; }
+
+/* Alert warning elements */
+.alert-bar {
+  position:absolute; left:0; right:0; height:2px;
+  background:linear-gradient(90deg,transparent,#ef4444,transparent);
+  opacity:0; pointer-events:none; transition:opacity .4s;
+  box-shadow:0 0 12px #ef4444;
+}
+.alert-bar.top { top:0; }
+.alert-bar.bottom { bottom:0; }
+.alert-text {
+  position:absolute; left:50%; transform:translateX(-50%);
+  font-family:'Orbitron',sans-serif; font-size:9px; letter-spacing:5px; color:#ef4444;
+  opacity:0; pointer-events:none; transition:opacity .4s;
+  text-shadow:0 0 12px #ef4444; animation:blink-alert 1s step-end infinite;
+  white-space:nowrap;
+}
+.alert-text.top { top:12px; }
+.alert-text.bottom { bottom:14px; }
+@keyframes blink-alert{0%,100%{opacity:1}50%{opacity:.15}}
+
+.drag-hint { position:absolute; bottom:130px; left:50%; transform:translateX(-50%); font-size:7px; letter-spacing:3px; color:var(--c); opacity:.18; white-space:nowrap; }
+
+/* ── State Controls ─────────────────────── */
+.mode-controls {
+  position:fixed; bottom:28px; left:50%; transform:translateX(-50%);
+  display:flex; gap:7px; z-index:20; pointer-events:all; flex-wrap:wrap; justify-content:center;
+  max-width:900px;
+}
+.mbtn {
+  background:transparent; border:1px solid rgba(168,85,247,.35);
+  color:var(--vb); font-family:'Share Tech Mono',monospace;
+  font-size:7px; letter-spacing:2px; padding:5px 10px;
+  cursor:pointer; opacity:.4; transition:all .2s; text-transform:uppercase;
+}
+.mbtn:hover,.mbtn.act { opacity:1; background:rgba(168,85,247,.1); border-color:var(--v); box-shadow:0 0 10px rgba(168,85,247,.4); color:#fff; }
+.mbtn.danger { border-color:rgba(239,68,68,.35); color:#fca5a5; }
+.mbtn.danger:hover,.mbtn.danger.act { border-color:#ef4444; box-shadow:0 0 10px rgba(239,68,68,.4); background:rgba(239,68,68,.1); }
+
+/* ── Boot sequence ──────────────────────── */
+#boot {
+  position:fixed; inset:0; background:transparent; z-index:500;
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  transition:opacity 1.8s ease;
+}
+#boot.out { opacity:0; pointer-events:none; }
+.boot-title-wrap { position:relative; margin-bottom:20px; }
+.boot-ch { position:absolute; top:0; left:0; font-family:'Orbitron',sans-serif; font-size:88px; font-weight:900; letter-spacing:28px; white-space:nowrap; pointer-events:none; }
+#boot-r { color:rgba(232,121,249,.5); }
+#boot-b { color:rgba(34,211,238,.5); }
+#boot-logo {
+  position:relative; font-family:'Orbitron',sans-serif; font-size:88px; font-weight:900; letter-spacing:28px;
+  background:linear-gradient(90deg,var(--v),var(--c),var(--pk),var(--v)); background-size:200%;
+  -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text;
+  filter:drop-shadow(0 0 40px rgba(168,85,247,.9));
+  animation:shimmer 3s linear infinite;
+  white-space:nowrap; opacity:0; transition:opacity .4s;
+}
+.boot-sub { font-size:9px; letter-spacing:9px; color:rgba(34,211,238,.6); opacity:0; margin-bottom:48px; animation:fi .4s forwards 1.5s; }
+@keyframes fi{to{opacity:1}}
+.boot-log { width:480px; font-size:10px; line-height:2; }
+.blog-item { display:flex; justify-content:space-between; opacity:0; color:rgba(168,85,247,.7); transform:translateX(-8px); transition:.12s ease; padding:1px 5px; border-left:1px solid transparent; }
+.blog-item.on { opacity:1; transform:none; border-left-color:rgba(168,85,247,.25); }
+.ok-tag { color:#4ade80; text-shadow:0 0 8px rgba(74,222,128,.6); }
+.boot-bar-wrap { width:480px; margin-top:22px; opacity:0; animation:fi .3s forwards 2s; }
+.boot-bar-lbl { font-size:8px; letter-spacing:5px; color:rgba(34,211,238,.45); margin-bottom:7px; }
+.boot-bar-track { height:1px; background:rgba(168,85,247,.1); position:relative; overflow:visible; }
+.boot-bar-fill { height:100%; width:0%; background:linear-gradient(90deg,var(--v),var(--c)); box-shadow:0 0 16px var(--c); transition:width .1s linear; }
+
+/* Misc */
+.blink { animation:blink 4s step-end infinite; }
+@keyframes blink{0%,89%,100%{opacity:1}90%,95%{opacity:.1}}
+
+/* ── Mic indicator ──────────────────────── */
+.mic-dot {
+  display:inline-block; width:6px; height:6px; border-radius:50%;
+  background:#ef4444; margin-right:5px; vertical-align:middle;
+  animation:mic-pulse 0.6s ease-in-out infinite alternate;
+  opacity:0; transition:opacity .3s;
+}
+.mic-dot.active { opacity:1; }
+@keyframes mic-pulse { from{box-shadow:0 0 4px #ef4444;} to{box-shadow:0 0 12px #ef4444,0 0 24px #ef444466;} }
+.mbtn.mic-on { border-color:#ef4444 !important; color:#fca5a5 !important; opacity:1 !important; box-shadow:0 0 10px rgba(239,68,68,.4) !important; }
+
+/* ── WS status dot ──────────────────────── */
+.ws-dot {
+  display:inline-block; width:5px; height:5px; border-radius:50%;
+  background:#4ade80; margin-left:4px; vertical-align:middle;
+  transition:background .4s;
+}
+.ws-dot.off { background:#374151; }
+</style>
+</head>
+<body>
+<div id="bg-light"></div>
+<div class="scan"></div>
+
+<!-- Boot Sequence -->
+<div id="boot">
+  <div class="boot-title-wrap">
+    <div class="boot-ch" id="boot-r">NOVA</div>
+    <div class="boot-ch" id="boot-b">NOVA</div>
+    <div id="boot-logo">NOVA</div>
+  </div>
+  <div class="boot-sub">NEURAL OPERATIVE VIRTUAL ASSISTANT · v2.1</div>
+  <div class="boot-log" id="boot-log"></div>
+  <div class="boot-bar-wrap">
+    <div class="boot-bar-lbl">INICIALIZANDO NÚCLEO HOLOGRÁFICO</div>
+    <div class="boot-bar-track"><div class="boot-bar-fill" id="boot-bar"></div></div>
+  </div>
+</div>
+
+<canvas id="c"></canvas>
+
+<!-- HUD Overlay -->
+<div class="overlay">
+  <div class="corner corner-tl" id="c-tl"></div>
+  <div class="corner corner-tr" id="c-tr"></div>
+  <div class="corner corner-bl" id="c-bl"></div>
+  <div class="corner corner-br" id="c-br"></div>
+
+  <div class="alert-bar top" id="alert-top"></div>
+  <div class="alert-bar bottom" id="alert-bot"></div>
+  <div class="alert-text top" id="alert-label-top">⚠ ANOMALÍA DETECTADA · NODO ORACLE ⚠</div>
+  <div class="alert-text bottom" id="alert-label-bot">ACTIVANDO ESCUDO DE INTERFERENCIA</div>
+
+  <div class="nova-title">N.O.V.A</div>
+  <div class="nova-sub">Neural Operative Virtual Assistant · 3D Core v2.1</div>
+  <div class="mode-badge" id="mode-badge">MODO: IDLE</div>
+
+  <div class="info-left">
+    <div class="i-lbl">SISTEMA</div>
+    <div class="i-val blink" id="clock-val">00:00:00</div>
+    <hr class="divider">
+    <div class="i-lbl">CPU</div>
+    <div class="i-val" id="cpu-val">--%</div>
+    <div class="i-lbl">RAM</div>
+    <div class="i-val" id="ram-val">--%</div>
+    <hr class="divider">
+    <div class="i-lbl">NÚCLEO °K</div>
+    <div class="i-val" id="core-temp">----</div>
+    <div class="i-lbl">FPS</div>
+    <div class="i-val" id="fps-val">--</div>
+    <hr class="divider">
+    <div class="i-lbl">MICROFONO</div>
+    <div class="i-val"><span class="mic-dot" id="mic-dot"></span><span id="mic-db">--dB</span></div>
+    <div class="i-lbl">WEBSOCKET<span class="ws-dot off" id="ws-dot"></span></div>
+    <div class="i-val" id="ws-state">POLLING</div>
+  </div>
+
+  <div class="info-right">
+    <div class="i-lbl">OPERADOR</div>
+    <div class="i-val">ALEX</div>
+    <div class="i-lbl" style="font-size:7px;opacity:.3">NIVEL 5 · AUTORIZADO</div>
+    <hr class="divider">
+    <div class="i-lbl">ORACLE</div>
+    <div class="i-val" id="oracle-val" style="color:#4ade80">OK</div>
+    <hr class="divider">
+    <div class="i-lbl">CARGA SYS</div>
+    <div class="i-val" id="load-val">NOMINAL</div>
+    <div class="i-lbl">PARTÍCULAS</div>
+    <div class="i-val">2048</div>
+  </div>
+
+  <div class="status-wrap">
+    <div class="status-label" id="status-label">INICIALIZANDO</div>
+    <div class="status-sub" id="status-sub">SECUENCIA DE ARRANQUE · HOLOGRAFÍA ACTIVA</div>
+  </div>
+
+  <div class="drag-hint">◈ ARRASTRAR PARA ROTAR · SOLTAR ARCHIVO SOBRE LA ESFERA</div>
+</div>
+
+<div class="mode-controls">
+  <button class="mbtn act" onclick="setMode('idle',this)">IDLE</button>
+  <button class="mbtn" onclick="setMode('listening',this)">ESCUCHAR</button>
+  <button class="mbtn" onclick="setMode('thinking',this)">PROCESAR</button>
+  <button class="mbtn" onclick="setMode('talking',this)">HABLAR</button>
+  <button class="mbtn" onclick="setMode('concentration',this)">CONCENTRACIÓN</button>
+  <button class="mbtn" onclick="setMode('creative',this)">CREATIVO</button>
+  <button class="mbtn danger" onclick="setMode('alert',this)">ALERTA</button>
+  <button class="mbtn danger" onclick="triggerShutdown()">APAGAR</button>
+  <button class="mbtn" id="mic-btn" onclick="toggleMic()">MIC OFF</button>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+
+// ══════════════════════════════════════════════════════
+// MODE DEFINITIONS
+// ══════════════════════════════════════════════════════
+const MODES = {
+  idle: {
+    label:'EN ESPERA', sub:'SISTEMA NOMINAL · HOLOGRAFÍA ACTIVA', badge:'MODO: IDLE',
+    col: new THREE.Color(0xa855f7), col2: new THREE.Color(0x22d3ee),
+    cornerCol:'#a855f7', bgCol:'168,85,247', bgOpacity:0.12,
+    bloom:1.2, bloomR:0.4,
+    orbScale:1.0, orbIntensity:0.25, orbScaleY:1.0,
+    ringSpeed:0.5, cageSpeed:0.18,
+    particleMode:'drift', particleSpeed:1.0, particleFreeze:false,
+    eqScale:0.25, arcOp:0.2,
+    alertShield:0.0, hueShift:false
+  },
+  listening: {
+    label:'ESCUCHANDO', sub:'CAPTURANDO AUDIO · VOZ DETECTADA', badge:'MODO: ESCUCHA',
+    col: new THREE.Color(0x22d3ee), col2: new THREE.Color(0xa855f7),
+    cornerCol:'#22d3ee', bgCol:'34,211,238', bgOpacity:0.15,
+    bloom:1.7, bloomR:0.55,
+    orbScale:1.3, orbIntensity:0.6, orbScaleY:1.0,
+    ringSpeed:1.4, cageSpeed:0.42,
+    particleMode:'converge', particleSpeed:1.3, particleFreeze:false,
+    eqScale:0.9, arcOp:0.5,
+    alertShield:0.0, hueShift:false
+  },
+  thinking: {
+    label:'PROCESANDO', sub:'ANALIZANDO DATOS · IA ACTIVA', badge:'MODO: PROCESO',
+    col: new THREE.Color(0xfb923c), col2: new THREE.Color(0xfde68a),
+    cornerCol:'#fb923c', bgCol:'251,146,60', bgOpacity:0.13,
+    bloom:2.0, bloomR:0.65,
+    orbScale:1.15, orbIntensity:0.75, orbScaleY:1.0,
+    ringSpeed:3.0, cageSpeed:1.2,
+    particleMode:'spiral', particleSpeed:2.0, particleFreeze:false,
+    eqScale:0.65, arcOp:0.7,
+    alertShield:0.0, hueShift:false
+  },
+  talking: {
+    label:'RESPONDIENDO', sub:'TRANSMISIÓN DE VOZ · ACTIVA', badge:'MODO: VOZ',
+    col: new THREE.Color(0xe879f9), col2: new THREE.Color(0xc084fc),
+    cornerCol:'#e879f9', bgCol:'232,121,249', bgOpacity:0.14,
+    bloom:1.6, bloomR:0.5,
+    orbScale:1.28, orbIntensity:0.68, orbScaleY:1.0,
+    ringSpeed:1.6, cageSpeed:0.55,
+    particleMode:'explode', particleSpeed:1.2, particleFreeze:false,
+    eqScale:1.0, arcOp:0.55,
+    alertShield:0.0, hueShift:false
+  },
+  concentration: {
+    label:'CONCENTRACIÓN', sub:'MODO ENFOQUE · PARTÍCULAS DETENIDAS', badge:'MODO: CONCENTRACIÓN',
+    col: new THREE.Color(0x6366f1), col2: new THREE.Color(0x818cf8),
+    cornerCol:'#6366f1', bgCol:'99,102,241', bgOpacity:0.07,
+    bloom:0.7, bloomR:0.2,
+    orbScale:0.52, orbIntensity:0.12, orbScaleY:1.0,
+    ringSpeed:0.15, cageSpeed:0.04,
+    particleMode:'freeze', particleSpeed:0.0, particleFreeze:true,
+    eqScale:0.05, arcOp:0.06,
+    alertShield:0.0, hueShift:false
+  },
+  creative: {
+    label:'MODO CREATIVO', sub:'EXPANSIÓN NEBULOSA · FLUJO ETÉREO', badge:'MODO: CREATIVO',
+    col: new THREE.Color(0xa855f7), col2: new THREE.Color(0xe879f9),
+    cornerCol:'#e879f9', bgCol:'232,121,249', bgOpacity:0.18,
+    bloom:1.5, bloomR:0.8,
+    orbScale:1.6, orbIntensity:1.4, orbScaleY:1.0,
+    ringSpeed:0.6, cageSpeed:0.1,
+    particleMode:'nebula', particleSpeed:0.35, particleFreeze:false,
+    eqScale:0.4, arcOp:0.3,
+    alertShield:0.0, hueShift:true
+  },
+  alert: {
+    label:'⚠ ALERTA ORACLE', sub:'ANOMALÍA DETECTADA · NODO REMOTO', badge:'⚠ ESCUDO ACTIVO',
+    col: new THREE.Color(0xef4444), col2: new THREE.Color(0xfca5a5),
+    cornerCol:'#ef4444', bgCol:'239,68,68', bgOpacity:0.2,
+    bloom:1.9, bloomR:0.7,
+    orbScale:1.1, orbIntensity:0.0, orbScaleY:0.08,
+    ringSpeed:2.5, cageSpeed:0.05,
+    particleMode:'orbit-flat', particleSpeed:2.5, particleFreeze:false,
+    eqScale:0.0, arcOp:0.0,
+    alertShield:1.0, hueShift:false
+  }
+};
+
+// ══════════════════════════════════════════════════════
+// RENDERER + SCENE + CAMERA
+// ══════════════════════════════════════════════════════
+const canvas = document.getElementById('c');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, premultipliedAlpha: false });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.0;
+renderer.setClearColor(0x000000, 0);
+
+const scene = new THREE.Scene();
+
+const camera = new THREE.PerspectiveCamera(65, window.innerWidth / window.innerHeight, 0.1, 1000);
+camera.position.set(0, 0, 135);
+
+const controls = new OrbitControls(camera, canvas);
+controls.enableDamping = true;
+controls.dampingFactor = 0.06;
+controls.minDistance = 55;
+controls.maxDistance = 280;
+controls.autoRotate = true;
+controls.autoRotateSpeed = 0.55;
+
+const clock = new THREE.Clock();
+
+// Post-processing — render target con RGBA alpha para transparencia en Electron
+const _rtParams = {
+  minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter,
+  format: THREE.RGBAFormat, type: THREE.HalfFloatType, stencilBuffer: false,
+};
+const _rt = new THREE.WebGLRenderTarget(window.innerWidth, window.innerHeight, _rtParams);
+const composer = new EffectComposer(renderer, _rt);
+composer.addPass(new RenderPass(scene, camera));
+const bloomPass = new UnrealBloomPass(
+  new THREE.Vector2(window.innerWidth, window.innerHeight),
+  1.2, 0.4, 0.05
+);
+composer.addPass(bloomPass);
+
+// ══════════════════════════════════════════════════════
+// LIGHTS
+// ══════════════════════════════════════════════════════
+scene.add(new THREE.AmbientLight(0x110022, 2.5));
+const coreLight = new THREE.PointLight(0xa855f7, 80, 200);
+scene.add(coreLight);
+const rimLight = new THREE.PointLight(0x22d3ee, 28, 180);
+rimLight.position.set(55, 38, -65);
+scene.add(rimLight);
+
+// ══════════════════════════════════════════════════════
+// SHADERS
+// ══════════════════════════════════════════════════════
+const ORB_VS = `
+uniform float uTime;
+uniform float uIntensity;
+uniform vec3  uGravPt;       // file gravity target (world space)
+uniform float uGravStr;      // 0-1
+
+varying vec3  vNormal;
+varying vec3  vWorldPos;
+varying float vNoise;
+varying vec2  vUv;
+
+float hash(vec3 p){p=fract(p*vec3(127.1,311.7,74.7));p+=dot(p,p.yxz+19.19);return fract((p.x+p.y)*p.z);}
+float noise(vec3 x){vec3 i=floor(x),f=fract(x);f=f*f*(3.0-2.0*f);
+  return mix(mix(mix(hash(i),hash(i+vec3(1,0,0)),f.x),mix(hash(i+vec3(0,1,0)),hash(i+vec3(1,1,0)),f.x),f.y),
+             mix(mix(hash(i+vec3(0,0,1)),hash(i+vec3(1,0,1)),f.x),mix(hash(i+vec3(0,1,1)),hash(i+vec3(1,1,1)),f.x),f.y),f.z);}
+float fbm(vec3 p){float v=0.0,a=0.5;for(int i=0;i<5;i++){v+=a*noise(p);p=p*2.1+1.7;a*=0.5;}return v;}
+
+void main(){
+  vUv    = uv;
+  vNormal = normalize(normalMatrix * normal);
+  // Organic displacement
+  float n  = fbm(position * 0.11 + uTime * 0.21);
+  float n2 = fbm(position * 0.24 - uTime * 0.14 + 5.0);
+  float disp = (n + n2 * 0.5) * uIntensity * 9.5;
+  vNoise = n;
+  vec3 newPos = position + normal * disp;
+
+  // File gravity deformation
+  vec4 wPos4 = modelMatrix * vec4(newPos, 1.0);
+  vec3 toGrav = uGravPt - wPos4.xyz;
+  float gravDist = length(toGrav);
+  float gravForce = uGravStr * smoothstep(55.0, 8.0, gravDist);
+  newPos += normalize(toGrav) * gravForce * 7.5;
+
+  vWorldPos = (modelMatrix * vec4(newPos, 1.0)).xyz;
+  gl_Position = projectionMatrix * modelViewMatrix * vec4(newPos, 1.0);
+}
+`;
+
+const ORB_FS = `
+uniform vec3  uColor;
+uniform vec3  uColor2;
+uniform float uIntensity;
+uniform float uTime;
+uniform float uAlertMode;   // 0 = normal, 1 = interference shield
+uniform float uHue;         // creative hue rotation
+
+varying vec3  vNormal;
+varying vec3  vWorldPos;
+varying float vNoise;
+varying vec2  vUv;
+
+vec3 hueShift(vec3 c, float h){
+  vec3 k=vec3(0.57735);float ca=cos(h);
+  return c*ca+cross(k,c)*sin(h)+k*dot(k,c)*(1.0-ca);
+}
+
+void main(){
+  vec3 viewDir = normalize(cameraPosition - vWorldPos);
+  float fresnel = pow(1.0 - max(0.0, dot(vNormal, viewDir)), 2.2);
+
+  // ── Normal mode ──
+  vec3 c1 = hueShift(uColor,  uHue);
+  vec3 c2 = hueShift(uColor2, uHue);
+  vec3 base   = mix(c1 * 0.25, c2 * 0.42, vNoise);
+  vec3 rim    = mix(c1, c2, fresnel);
+  vec3 normal_col = base + rim * fresnel * (1.65 + uIntensity);
+  float normal_a  = 0.09 + fresnel * 0.65 + uIntensity * 0.12;
+
+  // ── Alert interference shield ──
+  vec2 uv2  = vUv * 2.0 - 1.0;
+  float r   = length(uv2);
+  float w1  = sin(r * 28.0 - uTime * 7.0);
+  float w2  = sin(r * 19.0 + uTime * 4.5);
+  float interf = (w1 + w2) * 0.5;
+  vec3 alert_col = mix(vec3(0.28,0.0,0.0), vec3(1.0,0.08,0.08), interf * 0.5 + 0.5);
+  float alert_a  = 0.55 + interf * 0.35;
+
+  // Blend
+  vec3  final_c = mix(normal_col, alert_col, uAlertMode);
+  float final_a = mix(normal_a,   alert_a,   uAlertMode);
+
+  gl_FragColor = vec4(final_c, final_a);
+}
+`;
+
+// ══════════════════════════════════════════════════════
+// ORB MESH
+// ══════════════════════════════════════════════════════
+const orbUniforms = {
+  uTime:      { value: 0 },
+  uIntensity: { value: 0.25 },
+  uColor:     { value: new THREE.Color(0xa855f7) },
+  uColor2:    { value: new THREE.Color(0x22d3ee) },
+  uGravPt:    { value: new THREE.Vector3(0, 0, 0) },
+  uGravStr:   { value: 0 },
+  uAlertMode: { value: 0 },
+  uHue:       { value: 0 }
+};
+const orbMat = new THREE.ShaderMaterial({
+  vertexShader: ORB_VS, fragmentShader: ORB_FS,
+  uniforms: orbUniforms,
+  transparent: true, side: THREE.DoubleSide,
+  depthWrite: false, blending: THREE.AdditiveBlending
+});
+const orbMesh = new THREE.Mesh(new THREE.SphereGeometry(18, 96, 96), orbMat);
+scene.add(orbMesh);
+
+// Core glow layers
+const coreMat  = new THREE.MeshBasicMaterial({ color: 0xffffff });
+const coreMesh = new THREE.Mesh(new THREE.SphereGeometry(4, 24, 24), coreMat);
+scene.add(coreMesh);
+const glowMat  = new THREE.MeshBasicMaterial({ color:0xa855f7, transparent:true, opacity:0.28, blending:THREE.AdditiveBlending, depthWrite:false });
+const glowMesh = new THREE.Mesh(new THREE.SphereGeometry(9, 24, 24), glowMat);
+scene.add(glowMesh);
+
+// ══════════════════════════════════════════════════════
+// ORBITAL RINGS
+// ══════════════════════════════════════════════════════
+const ringDefs = [
+  { r:27, tube:0.42, rx:0.3,         rz:0,           col:0xa855f7 },
+  { r:35, tube:0.28, rx:Math.PI/3,   rz:Math.PI/4,   col:0x22d3ee },
+  { r:44, tube:0.20, rx:-Math.PI/3.5,rz:Math.PI/2.8, col:0xe879f9 },
+];
+const rings = ringDefs.map(d => {
+  const m = new THREE.Mesh(
+    new THREE.TorusGeometry(d.r, d.tube, 8, 128),
+    new THREE.MeshBasicMaterial({ color:d.col, transparent:true, opacity:0.65, blending:THREE.AdditiveBlending, depthWrite:false })
+  );
+  m.rotation.x = d.rx; m.rotation.z = d.rz;
+  scene.add(m); return m;
+});
+
+// ══════════════════════════════════════════════════════
+// WIREFRAME CAGE
+// ══════════════════════════════════════════════════════
+const cage = new THREE.LineSegments(
+  new THREE.EdgesGeometry(new THREE.IcosahedronGeometry(52, 2)),
+  new THREE.LineBasicMaterial({ color:0xa855f7, transparent:true, opacity:0.12, blending:THREE.AdditiveBlending, depthWrite:false })
+);
+scene.add(cage);
+
+// ══════════════════════════════════════════════════════
+// PARTICLE SYSTEM — 2048
+// ══════════════════════════════════════════════════════
+const N = 2048;
+const pPos   = new Float32Array(N * 3);
+const pColor = new Float32Array(N * 3);
+const pData  = [];
+
+for (let i = 0; i < N; i++) {
+  const theta = Math.random() * Math.PI * 2;
+  const phi   = Math.acos(2 * Math.random() - 1);
+  const r     = 58 + Math.random() * 62;
+  const x = r * Math.sin(phi) * Math.cos(theta);
+  const y = r * Math.sin(phi) * Math.sin(theta);
+  const z = r * Math.cos(phi);
+  pPos[i*3]=x; pPos[i*3+1]=y; pPos[i*3+2]=z;
+  pColor[i*3]=0.66; pColor[i*3+1]=0.33; pColor[i*3+2]=0.97;
+  pData.push({
+    baseR:r, r, theta, phi,
+    frozenX:x, frozenY:y, frozenZ:z, // for concentration freeze
+    speed:(Math.random()-0.5)*0.022,
+    phiSpd:(Math.random()-0.5)*0.010,
+    rOff: Math.random()*Math.PI*2,
+    spiralA: theta,
+    flatTheta: theta // for alert flat orbit
+  });
+}
+
+const pGeo = new THREE.BufferGeometry();
+pGeo.setAttribute('position', new THREE.BufferAttribute(pPos, 3));
+pGeo.setAttribute('color',    new THREE.BufferAttribute(pColor, 3));
+const pMat = new THREE.PointsMaterial({
+  size:1.7, vertexColors:true, transparent:true, opacity:0.72,
+  blending:THREE.AdditiveBlending, depthWrite:false, sizeAttenuation:true
+});
+scene.add(new THREE.Points(pGeo, pMat));
+
+// ══════════════════════════════════════════════════════
+// FLOATING CRYSTALS — 16 tetrahedra
+// ══════════════════════════════════════════════════════
+const CCOLS = [0xa855f7, 0x22d3ee, 0xe879f9, 0xfb923c];
+const crystals = Array.from({length:16}, (_,i) => {
+  const m = new THREE.LineSegments(
+    new THREE.EdgesGeometry(new THREE.TetrahedronGeometry(1.1+Math.random()*1.4)),
+    new THREE.LineBasicMaterial({ color:CCOLS[i%4], transparent:true, opacity:0.6, blending:THREE.AdditiveBlending, depthWrite:false })
+  );
+  const ang = (i/16)*Math.PI*2, r = 64+Math.random()*16, h=(Math.random()-.5)*36;
+  m.position.set(Math.cos(ang)*r, h, Math.sin(ang)*r);
+  m.userData = { ang, r, h, spd:0.005+Math.random()*0.011, rot:0.025+Math.random()*0.03 };
+  scene.add(m); return m;
+});
+
+// ══════════════════════════════════════════════════════
+// EQUALIZER BARS — 64
+// ══════════════════════════════════════════════════════
+const EQ_N = 64;
+const eqBars = Array.from({length:EQ_N}, (_,i) => {
+  const a = (i/EQ_N)*Math.PI*2;
+  const m = new THREE.Mesh(
+    new THREE.BoxGeometry(1.4, 1, 1.4),
+    new THREE.MeshBasicMaterial({ color:0xa855f7, transparent:true, opacity:0.55, blending:THREE.AdditiveBlending, depthWrite:false })
+  );
+  const ir = 55;
+  m.position.set(Math.cos(a)*ir, 0, Math.sin(a)*ir);
+  m.lookAt(0,0,0); m.rotateX(Math.PI/2);
+  scene.add(m);
+  return { mesh:m, ang:a, phase:Math.random()*Math.PI*2 };
+});
+
+// ══════════════════════════════════════════════════════
+// ENERGY ARCS
+// ══════════════════════════════════════════════════════
+const arcs = Array.from({length:14}, () => {
+  const pts = new Float32Array(6);
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pts, 3));
+  const line = new THREE.Line(geo, new THREE.LineBasicMaterial({ color:0xa855f7, transparent:true, opacity:0.3, blending:THREE.AdditiveBlending, depthWrite:false }));
+  scene.add(line);
+  return { line, geo, pts, target:Math.floor(Math.random()*N), life:Math.random() };
+});
+
+// ══════════════════════════════════════════════════════
+// STAR FIELD
+// ══════════════════════════════════════════════════════
+const sPts = new Float32Array(900*3);
+for(let i=0;i<900;i++){const r=210+Math.random()*110,t=Math.random()*Math.PI*2,p=Math.acos(2*Math.random()-1);sPts[i*3]=r*Math.sin(p)*Math.cos(t);sPts[i*3+1]=r*Math.sin(p)*Math.sin(t);sPts[i*3+2]=r*Math.cos(p);}
+const sGeo=new THREE.BufferGeometry();sGeo.setAttribute('position',new THREE.BufferAttribute(sPts,3));
+scene.add(new THREE.Points(sGeo,new THREE.PointsMaterial({color:0x8888aa,size:0.4,transparent:true,opacity:0.35,depthWrite:false})));
+
+// ══════════════════════════════════════════════════════
+// DISINTEGRATION EFFECT
+// ══════════════════════════════════════════════════════
+let shutdownActive = false, shutdownTime = 0;
+const dustN = 4000;
+const dustPos = new Float32Array(dustN * 3);
+const dustVel = [];
+let dustMesh = null;
+
+function createDustMesh() {
+  // Sample points on sphere surface for disintegration
+  const geo = new THREE.BufferGeometry();
+  for (let i = 0; i < dustN; i++) {
+    const theta = Math.random()*Math.PI*2, phi=Math.acos(2*Math.random()-1);
+    const r = 3 + Math.random() * 55;
+    dustPos[i*3]   = r*Math.sin(phi)*Math.cos(theta);
+    dustPos[i*3+1] = r*Math.sin(phi)*Math.sin(theta);
+    dustPos[i*3+2] = r*Math.cos(phi);
+    dustVel.push({
+      vx: (Math.random()-.5)*0.8,
+      vy: -(0.3 + Math.random()*1.2), // mostly downward
+      vz: (Math.random()-.5)*0.8
+    });
+  }
+  geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(dustPos), 3));
+  const mat = new THREE.PointsMaterial({ color:0xc084fc, size:1.2, transparent:true, opacity:0.8, blending:THREE.AdditiveBlending, depthWrite:false });
+  dustMesh = new THREE.Points(geo, mat);
+  scene.add(dustMesh);
+}
+
+window.triggerShutdown = function() {
+  if (shutdownActive) return;
+  shutdownActive = true; shutdownTime = 0;
+  createDustMesh();
+  // Hide main geometry
+  orbMesh.visible = false; coreMesh.visible = false; glowMesh.visible = false;
+  rings.forEach(r=>r.visible=false); cage.visible=false;
+  crystals.forEach(c=>c.visible=false);
+  eqBars.forEach(b=>b.mesh.visible=false);
+  arcs.forEach(a=>a.line.visible=false);
+};
+
+// ══════════════════════════════════════════════════════
+// FILE GRAVITY
+// ══════════════════════════════════════════════════════
+const raycaster = new THREE.Raycaster();
+const mouse2 = new THREE.Vector2();
+const gravPlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
+const gravPoint = new THREE.Vector3();
+let gravActive = false, gravStr = 0;
+
+window.addEventListener('dragover', e => {
+  e.preventDefault();
+  mouse2.x = (e.clientX / window.innerWidth)  *  2 - 1;
+  mouse2.y = -(e.clientY / window.innerHeight) * 2 + 1;
+  raycaster.setFromCamera(mouse2, camera);
+  raycaster.ray.intersectPlane(gravPlane, gravPoint);
+  gravActive = true;
+});
+window.addEventListener('dragleave', () => { gravActive = false; });
+window.addEventListener('drop',      e => { e.preventDefault(); gravActive = false; });
+
+// ══════════════════════════════════════════════════════
+// SMOOTH STATE VARIABLES
+// ══════════════════════════════════════════════════════
+let iCol   = new THREE.Color(0xa855f7);
+let iCol2  = new THREE.Color(0x22d3ee);
+let iBloom = 1.2, iBloomR = 0.4, iOrbInt = 0.25;
+let iOrbScale = 1.0, iOrbScaleY = 1.0;
+let iAlertShield = 0.0, iHue = 0.0;
+let cpuLoad = 0, iCpuLoad = 0;
+let systemMultiplier = 1.0; // 0.3 (sleep) to 2.5 (heavy load)
+let currentMode = 'idle';
+let currentCfg  = MODES.idle;
+
+// ══════════════════════════════════════════════════════
+// MODE SWITCHER
+// ══════════════════════════════════════════════════════
+window.setMode = function(key, btn) {
+  if (key === currentMode || shutdownActive) return;
+  currentMode = key;
+  currentCfg  = MODES[key];
+  const cfg = currentCfg;
+
+  const g = id => document.getElementById(id);
+  g('status-label').textContent = cfg.label;
+  g('status-label').style.color = `#${cfg.col.getHexString()}`;
+  g('status-label').style.textShadow = `0 0 20px #${cfg.col.getHexString()}`;
+  g('status-sub').textContent = cfg.sub;
+  g('mode-badge').textContent = cfg.badge;
+  g('mode-badge').style.color = cfg.cornerCol;
+  g('mode-badge').style.borderColor = cfg.cornerCol;
+  g('mode-badge').style.textShadow = `0 0 10px ${cfg.cornerCol}`;
+
+  ['c-tl','c-tr','c-bl','c-br'].forEach(id => {
+    const e = g(id); if (!e) return;
+    e.style.borderColor = cfg.cornerCol;
+    e.style.opacity = key==='idle'?'0.4':'0.95';
+    e.style.boxShadow = key==='idle'?'none':`0 0 14px ${cfg.cornerCol}55`;
+  });
+
+  // Alert elements
+  const isAlert = key === 'alert';
+  ['alert-top','alert-bot'].forEach(id => { g(id).style.opacity = isAlert?'1':'0'; });
+  ['alert-label-top','alert-label-bot'].forEach(id => { g(id).style.opacity = isAlert?'1':'0'; });
+
+  // Background light
+  updateBgLight(cfg.bgCol, cfg.bgOpacity);
+
+  document.querySelectorAll('.mbtn').forEach(b => b.classList.remove('act'));
+  if (btn) btn.classList.add('act');
+};
+
+function updateBgLight(rgb, op) {
+  const el = document.getElementById('bg-light');
+  el.style.background = `radial-gradient(ellipse 65% 55% at 50% 50%, rgba(${rgb},${op}) 0%, transparent 70%)`;
+}
+
+// ══════════════════════════════════════════════════════
+// CLOCK UI
+// ══════════════════════════════════════════════════════
+function updateClock() {
+  const n=new Date(),p=x=>String(x).padStart(2,'0');
+  const el = document.getElementById('clock-val');
+  if (el) el.textContent = `${p(n.getHours())}:${p(n.getMinutes())}:${p(n.getSeconds())}`;
+}
+setInterval(updateClock, 1000); updateClock();
+
+// ══════════════════════════════════════════════════════
+// ANIMATION LOOP
+// ══════════════════════════════════════════════════════
+let time = 0;
+let fpsCnt = 0, lastFPSt = performance.now();
+let launchDone = false;
+
+function animate(ts) {
+  requestAnimationFrame(animate);
+  let delta = clock.getDelta();
+  delta = Math.min(delta, 0.05); // cap for focus loss
+
+  // Normalize to 60fps units so values feel consistent regardless of monitor hz
+  const dt = delta * 60;
+
+  time += delta;
+  fpsCnt++;
+  if (ts - lastFPSt > 1000) {
+    const f = document.getElementById('fps-val');
+    if (f) f.textContent = fpsCnt;
+    const ct = document.getElementById('core-temp');
+    if (ct) ct.textContent = (4500+Math.floor(Math.random()*600))+'°K';
+    fpsCnt = 0; lastFPSt = ts;
+  }
+
+  // ── Shutdown disintegration ──
+  if (shutdownActive) {
+    shutdownTime += delta;
+    if (dustMesh) {
+      const posAttrD = dustMesh.geometry.attributes.position;
+      for (let i = 0; i < dustN; i++) {
+        const v = dustVel[i];
+        v.vy -= delta * 2.5; // gravity
+        posAttrD.setXYZ(i,
+          posAttrD.getX(i) + v.vx * dt,
+          posAttrD.getY(i) + v.vy * dt,
+          posAttrD.getZ(i) + v.vz * dt
+        );
+      }
+      posAttrD.needsUpdate = true;
+      dustMesh.material.opacity = Math.max(0, 1.0 - shutdownTime * 0.6);
+    }
+    controls.update();
+    window.electronAPI ? renderer.render(scene, camera) : composer.render();
+    return;
+  }
+
+  const cfg = currentCfg;
+
+  // ── Smooth lerp all values ──
+  const L = Math.min(0.045 * dt, 0.15);
+  iCol.lerp(cfg.col,   L);
+  iCol2.lerp(cfg.col2, L);
+  iBloom  += (cfg.bloom  - iBloom)  * L;
+  iBloomR += (cfg.bloomR - iBloomR) * L;
+  iOrbInt += (cfg.orbIntensity - iOrbInt) * L;
+  iOrbScale  += (cfg.orbScale  - iOrbScale)  * L;
+  iOrbScaleY += (cfg.orbScaleY - iOrbScaleY) * L;
+  iAlertShield += (cfg.alertShield - iAlertShield) * L;
+  gravStr += ((gravActive ? 1 : 0) - gravStr) * Math.min(0.12 * dt, 0.3);
+
+  // Hue shift for creative mode
+  if (cfg.hueShift) iHue += delta * 0.4;
+  else iHue += (-iHue) * L;
+
+  // CPU multiplier → drive ring/particle energy
+  iCpuLoad += (cpuLoad - iCpuLoad) * 0.02;
+  systemMultiplier = 0.3 + iCpuLoad * 2.8; // 0.3 (sleep) – 3.1 (100% load)
+  const smClamp = Math.max(0.3, Math.min(3.5, systemMultiplier));
+
+  bloomPass.strength = iBloom * Math.min(smClamp * 0.6 + 0.5, 2.5);
+  bloomPass.radius   = iBloomR;
+
+  // ── Orb shader ──
+  orbUniforms.uTime.value      = time;
+  orbUniforms.uIntensity.value = iOrbInt;
+  orbUniforms.uColor.value.copy(iCol);
+  orbUniforms.uColor2.value.copy(iCol2);
+  orbUniforms.uGravPt.value.copy(gravPoint);
+  orbUniforms.uGravStr.value   = gravStr;
+  orbUniforms.uAlertMode.value = iAlertShield;
+  orbUniforms.uHue.value       = iHue;
+
+  // ── Orb scale ──
+  const pulse = Math.sin(time * 3.2) * 0.1 + 1.0;
+  const cps   = cfg.coreScale ?? 1.0;
+  const finalScale = iOrbScale * pulse;
+  orbMesh.scale.set(finalScale, finalScale * iOrbScaleY, finalScale);
+  coreMesh.scale.setScalar(finalScale * 0.9);
+  glowMesh.material.color.copy(iCol);
+  glowMesh.material.opacity = 0.16 + iOrbInt * 0.4;
+  glowMesh.scale.setScalar(finalScale * 1.1);
+  coreLight.color.copy(iCol);
+  coreLight.intensity = (50 + iOrbInt * 105) * Math.min(smClamp, 2.0);
+  rimLight.color.copy(iCol2);
+
+  // ── Rings — speed driven by mode + CPU load ──
+  const rs = cfg.ringSpeed * 0.003 * smClamp * dt;
+  rings[0].rotation.y += rs;
+  rings[1].rotation.z += rs * 0.65;
+  rings[2].rotation.x += rs * 0.45;
+  rings.forEach((r, i) => {
+    r.material.color.copy(i===1 ? iCol2 : iCol);
+    r.material.opacity = 0.4 + iOrbInt * 0.42;
+    // In concentration: rings shrink inward visually
+    const rscale = cfg.orbScale ?? 1.0;
+    r.scale.setScalar(iOrbScale * 0.96 + 0.04);
+  });
+
+  // ── Cage ──
+  cage.rotation.x += cfg.cageSpeed * 0.003 * smClamp * dt;
+  cage.rotation.y += cfg.cageSpeed * 0.002 * smClamp * dt;
+  cage.material.color.copy(iCol);
+  cage.material.opacity = 0.06 + iOrbInt * 0.11;
+
+  // ── Crystals — pause in concentration ──
+  if (currentMode !== 'concentration') {
+    crystals.forEach(c => {
+      const d = c.userData;
+      d.ang += d.spd * smClamp * dt * (currentMode==='thinking'?3:1);
+      c.position.x = Math.cos(d.ang)*d.r;
+      c.position.z = Math.sin(d.ang)*d.r;
+      c.position.y = d.h + Math.sin(time*0.6+d.ang)*5;
+      c.rotation.x += d.rot * dt;
+      c.rotation.y += d.rot * 0.7 * dt;
+      c.material.opacity = 0.4 + iOrbInt * 0.35;
+    });
+  } else {
+    // Concentration: crystals fade out
+    crystals.forEach(c => { c.material.opacity = Math.max(0, c.material.opacity - 0.01 * dt); });
+  }
+
+  // ── Particles ──
+  const posAttr = pGeo.attributes.position;
+  const colAttr = pGeo.attributes.color;
+  const mode    = cfg.particleMode;
+  const frozen  = cfg.particleFreeze;
+
+  for (let i = 0; i < N; i++) {
+    const d = pData[i];
+    let x, y, z;
+
+    if (frozen) {
+      // Concentration: freeze and drift toward frozen position
+      x = posAttr.getX(i) + (d.frozenX - posAttr.getX(i)) * 0.02 * dt;
+      y = posAttr.getY(i) + (d.frozenY - posAttr.getY(i)) * 0.02 * dt;
+      z = posAttr.getZ(i) + (d.frozenZ - posAttr.getZ(i)) * 0.02 * dt;
+
+    } else if (mode === 'drift' || mode === 'idle') {
+      d.r += (d.baseR - d.r) * 0.012 * dt;
+      d.theta += d.speed * dt * smClamp;
+      d.phi   += d.phiSpd * dt * smClamp;
+      const rr = d.r + Math.sin(time*0.4+d.rOff)*7;
+      x = rr*Math.sin(d.phi)*Math.cos(d.theta);
+      y = rr*Math.sin(d.phi)*Math.sin(d.theta);
+      z = rr*Math.cos(d.phi);
+
+    } else if (mode === 'converge') {
+      d.r -= 0.06 * smClamp * dt;
+      if (d.r < 25) { d.r=108+Math.random()*20; d.theta=Math.random()*Math.PI*2; d.phi=Math.acos(2*Math.random()-1); }
+      d.theta += 0.015 * dt;
+      x = d.r*Math.sin(d.phi)*Math.cos(d.theta);
+      y = d.r*Math.sin(d.phi)*Math.sin(d.theta);
+      z = d.r*Math.cos(d.phi);
+
+    } else if (mode === 'spiral') {
+      d.spiralA += 0.03 * smClamp * dt;
+      const rr = d.baseR*0.6 + Math.sin(time*3+d.rOff)*25;
+      y = (posAttr.getY(i)) + Math.sin(time*1.5+i*0.07)*0.04*dt;
+      x = rr * Math.cos(d.spiralA);
+      z = rr * Math.sin(d.spiralA);
+
+    } else if (mode === 'explode') {
+      d.r += 0.14 * dt;
+      if (d.r > 145) { d.r=58+Math.random()*8; d.theta=Math.random()*Math.PI*2; d.phi=Math.acos(2*Math.random()-1); }
+      d.theta += d.speed * 0.5 * dt;
+      x = d.r*Math.sin(d.phi)*Math.cos(d.theta);
+      y = d.r*Math.sin(d.phi)*Math.sin(d.theta);
+      z = d.r*Math.cos(d.phi);
+
+    } else if (mode === 'nebula') {
+      // Creative: large slow drift
+      d.theta += d.speed * 0.15 * dt;
+      d.phi   += d.phiSpd * 0.1 * dt;
+      d.r += (d.baseR * 1.55 - d.r) * 0.005 * dt;
+      const rr = d.r + Math.sin(time*0.2+d.rOff)*18;
+      x = rr*Math.sin(d.phi)*Math.cos(d.theta);
+      y = rr*Math.sin(d.phi)*Math.sin(d.theta);
+      z = rr*Math.cos(d.phi);
+
+    } else if (mode === 'orbit-flat') {
+      // Alert: orbit flat in XZ plane
+      d.flatTheta += 0.04 * smClamp * dt;
+      const rr = 58 + Math.sin(time*2+d.rOff)*20;
+      x = rr * Math.cos(d.flatTheta);
+      y = Math.sin(time*4 + i*0.1) * 4;
+      z = rr * Math.sin(d.flatTheta);
+
+    } else {
+      x = posAttr.getX(i); y = posAttr.getY(i); z = posAttr.getZ(i);
+    }
+
+    posAttr.setXYZ(i, x, y, z);
+
+    // Per-particle color with hue rotation in creative mode
+    const blend = Math.sin(time*0.55+i*0.009)*0.5+0.5;
+    const cr = iCol.r + (iCol2.r-iCol.r)*blend;
+    const cg = iCol.g + (iCol2.g-iCol.g)*blend;
+    const cb = iCol.b + (iCol2.b-iCol.b)*blend;
+    colAttr.setXYZ(i, cr, cg, cb);
+  }
+  posAttr.needsUpdate = true;
+  colAttr.needsUpdate = true;
+  pMat.opacity = currentMode==='concentration' ? 0.28 : 0.72;
+
+  // ── Equalizer bars — mic-driven when available ──
+  if (micActive && micAnalyser) micAnalyser.getByteFrequencyData(micData);
+
+  eqBars.forEach((bar, i) => {
+    let val;
+    if (micActive && micAnalyser && currentMode === 'listening') {
+      // Real mic: map 64 frequency bins to 64 bars
+      const bin = Math.floor(i / EQ_N * (micData.length - 1));
+      val = (micData[bin] / 255) * 1.4;
+    } else {
+      const v1 = Math.sin(time*9+bar.phase)*Math.sin(time*5.5-i*0.22);
+      const v2 = Math.sin(time*3.5+i*0.28);
+      val = Math.abs((v1+v2)*0.5) * cfg.eqScale * smClamp;
+    }
+    const h = 0.5 + val * 26;
+    bar.mesh.scale.y     = h;
+    bar.mesh.position.y  = h * 0.5;
+    bar.mesh.material.color.copy(i%2===0?iCol:iCol2);
+    bar.mesh.material.opacity = 0.2 + val*0.55;
+  });
+
+  // ── Energy arcs ──
+  arcs.forEach(arc => {
+    arc.life -= 0.007 * dt;
+    if (arc.life <= 0) { arc.target=Math.floor(Math.random()*N); arc.life=0.4+Math.random()*0.6; }
+    const ti = arc.target;
+    arc.pts[3] = posAttr.getX(ti);
+    arc.pts[4] = posAttr.getY(ti);
+    arc.pts[5] = posAttr.getZ(ti);
+    arc.geo.attributes.position.needsUpdate = true;
+    arc.line.material.color.copy(iCol);
+    arc.line.material.opacity = arc.life * cfg.arcOp;
+  });
+
+  // ── Background dynamic light ──
+  const r = Math.round(iCol.r*255), g2 = Math.round(iCol.g*255), b = Math.round(iCol.b*255);
+  const op = cfg.bgOpacity + Math.sin(time*0.9)*0.02;
+  document.getElementById('bg-light').style.background =
+    `radial-gradient(ellipse 65% 55% at 50% 50%, rgba(${r},${g2},${b},${op.toFixed(3)}) 0%, transparent 70%)`;
+
+  controls.update();
+  window.electronAPI ? renderer.render(scene, camera) : composer.render();
+}
+
+requestAnimationFrame(animate);
+
+// ══════════════════════════════════════════════════════
+// MICROPHONE — Web Audio API
+// ══════════════════════════════════════════════════════
+let micAnalyser = null, micData = null, micActive = false;
+let micAudioCtx = null, micStream = null;
+let micPeakDb = -60;
+
+window.toggleMic = async function() {
+  if (micActive) {
+    // OFF
+    micActive = false;
+    if (micStream) micStream.getTracks().forEach(t => t.stop());
+    if (micAudioCtx) micAudioCtx.close();
+    micAnalyser = null; micData = null; micAudioCtx = null; micStream = null;
+    document.getElementById('mic-btn').textContent  = 'MIC OFF';
+    document.getElementById('mic-btn').classList.remove('mic-on');
+    document.getElementById('mic-dot').classList.remove('active');
+    document.getElementById('mic-db').textContent = '--dB';
+    return;
+  }
+  try {
+    micStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+    micAudioCtx = new AudioContext();
+    const src = micAudioCtx.createMediaStreamSource(micStream);
+    micAnalyser = micAudioCtx.createAnalyser();
+    micAnalyser.fftSize = 128;               // 64 frequency bins
+    micAnalyser.smoothingTimeConstant = 0.75;
+    src.connect(micAnalyser);
+    micData = new Uint8Array(micAnalyser.frequencyBinCount);
+    micActive = true;
+    document.getElementById('mic-btn').textContent = 'MIC ON';
+    document.getElementById('mic-btn').classList.add('mic-on');
+    document.getElementById('mic-dot').classList.add('active');
+  } catch(e) {
+    console.warn('[NOVA] Mic error:', e);
+  }
+};
+
+// Update mic dB display every 200ms (not every frame)
+setInterval(() => {
+  if (!micActive || !micAnalyser) return;
+  micAnalyser.getByteTimeDomainData(micData);
+  let rms = 0;
+  for (let i = 0; i < micData.length; i++) { const s = (micData[i]-128)/128; rms += s*s; }
+  const db = 20 * Math.log10(Math.sqrt(rms / micData.length) + 1e-6);
+  micPeakDb = db;
+  const el = document.getElementById('mic-db');
+  if (el) el.textContent = db.toFixed(1) + 'dB';
+  // Auto-drive orb intensity with voice volume (only in listening)
+  if (currentMode === 'listening') {
+    const norm = Math.max(0, Math.min(1, (db + 60) / 50));
+    orbUniforms.uIntensity.value = 0.4 + norm * 0.7;
+  }
+}, 200);
+
+// ══════════════════════════════════════════════════════
+// WEBSOCKET — real-time Flask sync with HTTP fallback
+// ══════════════════════════════════════════════════════
+let ws = null;
+let wsConnected = false;
+let _oracleFails = 0;
+const ORACLE_FAIL_THRESHOLD = 15;
+
+function applyServerData(d) {
+  if (d.state && MODES[d.state] && d.state !== currentMode && !shutdownActive)
+    setMode(d.state, null);
+  if (d.cpu !== undefined) {
+    cpuLoad = d.cpu / 100;
+    const lv = document.getElementById('load-val');
+    const cv = document.getElementById('cpu-val');
+    if (lv) lv.textContent = d.cpu < 25 ? 'NOMINAL' : d.cpu < 60 ? 'ACTIVO' : 'INTENSO';
+    if (cv) cv.textContent = d.cpu + '%';
+  }
+  if (d.ram !== undefined) { const rv=document.getElementById('ram-val'); if(rv) rv.textContent=d.ram+'%'; }
+  if (d.oracle !== undefined) {
+    const ov = document.getElementById('oracle-val');
+    if (ov) { ov.textContent=d.oracle?'OK':'FALLO'; ov.style.color=d.oracle?'#4ade80':'#ef4444'; }
+    if (!d.oracle) {
+      _oracleFails++;
+      if (_oracleFails >= ORACLE_FAIL_THRESHOLD && currentMode !== 'alert') setMode('alert', null);
+    } else {
+      _oracleFails = 0;
+      if (currentMode === 'alert') setMode('idle', null);
+    }
+  }
+}
+
+function setWsUI(connected) {
+  wsConnected = connected;
+  const dot  = document.getElementById('ws-dot');
+  const label= document.getElementById('ws-state');
+  if (dot)   dot.className   = 'ws-dot' + (connected ? '' : ' off');
+  if (label) label.textContent = connected ? 'WS ACTIVO' : 'POLLING';
+}
+
+function connectWS() {
+  try {
+    ws = new WebSocket('ws://localhost:5000/ws');
+    ws.onopen  = () => setWsUI(true);
+    ws.onclose = () => { setWsUI(false); ws=null; setTimeout(connectWS, 6000); };
+    ws.onerror = () => { ws=null; setWsUI(false); };
+    ws.onmessage = (ev) => { try { applyServerData(JSON.parse(ev.data)); } catch {} };
+  } catch { setWsUI(false); }
+}
+connectWS();
+
+// HTTP polling only when WS is down
+async function syncFlask() {
+  if (wsConnected) return;
+  try {
+    const res = await fetch('http://localhost:5000/status', { signal: AbortSignal.timeout(900) });
+    if (res.ok) applyServerData(await res.json());
+  } catch {}
+}
+setInterval(syncFlask, 3000);
+
+// ══════════════════════════════════════════════════════
+// BOOT / LAUNCH SEQUENCE — "El Despegue"
+// ══════════════════════════════════════════════════════
+const bootLogs = [
+  ['MOTOR HOLOGRÁFICO', 'OK'],
+  ['RED NEURONAL',      'OK'],
+  ['NODO ORACLE',       'ENLAZANDO'],
+  ['PARTÍCULAS 2048',   'OK'],
+  ['SHADERS GLSL',      'OK'],
+  ['BLOOM v2.1',        'OK'],
+  ['TAILSCALE VPN',     'OK'],
+  ['FISH SPEECH 1.5',   'OK'],
+];
+
+function runBoot() {
+  const logEl = document.getElementById('boot-log');
+  const bar   = document.getElementById('boot-bar');
+  const logo  = document.getElementById('boot-logo');
+
+  // Chromatic aberration on logo
+  setTimeout(() => {
+    logo.style.opacity = '1';
+    const r = document.getElementById('boot-r');
+    const b = document.getElementById('boot-b');
+    r.style.transform = 'translate(4px, -2px)';
+    b.style.transform = 'translate(-4px, 2px)';
+    r.style.transition = 'transform .8s cubic-bezier(.16,1,.3,1)';
+    b.style.transition = 'transform .8s cubic-bezier(.16,1,.3,1)';
+    setTimeout(() => { r.style.transform=''; b.style.transform=''; }, 900);
+  }, 300);
+
+  // Log items
+  bootLogs.forEach((item, idx) => {
+    const div = document.createElement('div');
+    div.className = 'blog-item';
+    div.innerHTML = `<span>▸ ${item[0]}</span><span class="ok-tag">${item[1]}</span>`;
+    logEl.appendChild(div);
+    setTimeout(() => {
+      div.classList.add('on');
+      bar.style.width = ((idx+1)/bootLogs.length*100) + '%';
+    }, 600 + idx * 180);
+  });
+
+  // Transition to scene
+  const totalDelay = 600 + bootLogs.length * 180 + 600;
+  setTimeout(() => {
+    document.getElementById('boot').classList.add('out');
+    // Scale-up launch animation
+    orbMesh.scale.setScalar(0.001);
+    coreMesh.scale.setScalar(0.001);
+    glowMesh.scale.setScalar(0.001);
+    rings.forEach(r => r.scale.setScalar(0.001));
+    cage.scale.setScalar(0.001);
+
+    // Animate scale up
+    let t = 0;
+    const launchInterval = setInterval(() => {
+      t += 1/60;
+      const ease = 1 - Math.pow(1 - Math.min(t/1.8, 1), 4); // ease out quart
+      const overshoot = ease < 0.95 ? ease : 1 + Math.sin(ease*Math.PI)*0.12;
+      const sc = Math.min(overshoot, 1.0);
+      orbMesh.scale.setScalar(sc);
+      coreMesh.scale.setScalar(sc);
+      glowMesh.scale.setScalar(sc);
+      rings.forEach(r => r.scale.setScalar(sc));
+      cage.scale.setScalar(sc);
+      if (t >= 1.8) {
+        clearInterval(launchInterval);
+        launchDone = true;
+        setMode('idle', document.querySelector('.mbtn'));
+        sessionStorage.setItem('nova_launched', '1');
+      }
+    }, 1000/60);
+
+  }, totalDelay);
+}
+
+// First load: play boot. Subsequent: skip.
+if (!sessionStorage.getItem('nova_launched')) {
+  runBoot();
+} else {
+  document.getElementById('boot').style.display = 'none';
+  launchDone = true;
+  setMode('idle', document.querySelector('.mbtn'));
+}
+
+// ══════════════════════════════════════════════════════
+// RESIZE
+// ══════════════════════════════════════════════════════
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  composer.setSize(window.innerWidth, window.innerHeight);
+  _rt.setSize(window.innerWidth, window.innerHeight);
+});
+
+</script>
+</body>
+</html>
